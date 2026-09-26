@@ -1,4 +1,4 @@
--- Which of supabase/migrations/0001-0022 has this project had?
+-- Which of supabase/migrations/0001-0023 has this project had?
 --
 -- READ-ONLY. Safe on any project, production included: it reads the system
 -- catalog and writes nothing. There is no migrations table in this project —
@@ -91,7 +91,10 @@ with marker (migration, applied, evidence) as (
      'function public.admin_people_overview'),
     ('0022', exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                      where n.nspname = 'public' and p.proname = 'admin_purge_person_history'),
-     'function public.admin_purge_person_history')
+     'function public.admin_purge_person_history'),
+    ('0023', exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                     where n.nspname = 'public' and c.relname = 'assessment_attempts'),
+     'table public.assessment_attempts')
 ),
 fact (migration, applied, evidence) as (
   -- Each of these should read `true` on a correctly configured project.
