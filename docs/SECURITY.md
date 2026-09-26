@@ -17,15 +17,16 @@ not an email in a request body, not a role in a payload.
 
 ### Role model v2 (migration 0020)
 
-| Role | Who | Operator app (`/`, `(app)/**`) | Admin panel (`/admin/**`, `/dashboard/**`) | Telemetry |
+| Role | Who | Operator app (`/`, `(app)/**`) | Admin panel (`/admin/**`; `/dashboard/**` only redirects) | Telemetry |
 | --- | --- | --- | --- | --- |
 | `admin` | the owner | yes — a preview | **yes, everything** | never recorded |
 | `manager` | a sales manager | yes (the operator's UI, for now) | **no** → sent to `/` | recorded |
 | `operator` | an operator | yes | **no** → sent to `/` | recorded |
 
 The admin panel refuses an operator and a sales manager at **every layer on its own**: `middleware.ts`
-(`isAdminArea()` → `homeForRole()`), the page gate (`requireAdminPage()` in both admin layouts — `/admin` and
-`/dashboard`, so the shell never renders for them — and again in every `/dashboard` page and on the people pages),
+(`isAdminArea()` → `homeForRole()`), the page gate (`requireAdminPage()` in the admin layout, so the shell never
+renders for them, and again first in every monitoring page — `/admin`, `/admin/knowledge`, `/admin/system` — and on
+the people pages; the retired `/dashboard` URLs only redirect to those, from `next.config.js`, with no data),
 the Server Action guard (`requireAdminSession()`), and the database (RLS through
 `private.is_admin()`, and a `WT403` from every admin function). **Admin rows are SQL-editor-only**: the
 allow-list guard refuses any write that carries a JWT and creates, promotes, demotes, deactivates,
@@ -43,7 +44,7 @@ inserting.
 | 3 | Google → `https://<ref>.supabase.co/auth/v1/callback` → back to `<origin>/auth/callback?code=…&locale=…` | Supabase Auth | The `code` is single-use and bound to the PKCE verifier in the browser. |
 | 4 | `exchangeCodeForSession(code)` | [app/auth/callback/route.ts](../app/auth/callback/route.ts) | **The gate.** GoTrue mints the access token here, and minting runs the hook in step 5. |
 | 5 | `public.custom_access_token_hook(event)` | [0014_role_gated_rls.sql](../supabase/migrations/0014_role_gated_rls.sql) | Active `allowed_users` row → stamps `app_metadata.role` = `operator` \| `manager` \| `admin`, verbatim from the row. Otherwise returns the Auth Hooks error response and **no token exists**. |
-| 6 | Route gating | [middleware.ts](../middleware.ts) | Reads the role off the locally verified JWT. The admin panel (`/admin`, `/dashboard`) is the admin's alone: an operator or a sales manager is sent to `/`. One-directional — the admin may open the operator routes too (a preview). Network-free (CLAUDE.md §4). It runs on every path except `api/*`, `auth/callback`, the Sentry tunnel, `_next/*`, the three `public/` asset folders and three exact files (CLAUDE.md §7) — until Audit-2 any path ending in `.json`, `.png`, `.map`… skipped it (AUDIT.md F1). |
+| 6 | Route gating | [middleware.ts](../middleware.ts) | Reads the role off the locally verified JWT. The admin panel (`/admin`; `/dashboard` stays listed though it only redirects) is the admin's alone: an operator or a sales manager is sent to `/`. One-directional — the admin may open the operator routes too (a preview). Network-free (CLAUDE.md §4). It runs on every path except `api/*`, `auth/callback`, the Sentry tunnel, `_next/*`, the three `public/` asset folders and three exact files (CLAUDE.md §7) — until Audit-2 any path ending in `.json`, `.png`, `.map`… skipped it (AUDIT.md F1). |
 | 7 | Row gating | RLS, via `private.is_member()` / `private.is_admin()` (`is_manager()` is its deprecated alias since 0020) | Which rows that session sees, per table. |
 
 `/login` and `/offline` are the only public paths. `/offline` is public because the service worker

@@ -129,7 +129,7 @@ that is staging or the belief is stale. Tick these off as they are applied:
       `unknown` (the RPC is missing) if it were called.
 - [ ] **0016** dashboard functions + retention — requires 0014 first. **Apply it before (or together with)
       deploying the code that calls it**: from S09 on the dashboard reads only through these functions, so
-      until 0016 exists every telemetry widget on `/dashboard`, `/dashboard/content` and `/dashboard/quality`
+      until 0016 exists every telemetry widget on `/admin`, `/admin/knowledge` and `/admin/system`
       shows its error state (the RPC is missing), and `/api/cron/content-scan` answers `retention_failed`
       after its scan. Nothing an operator sees is affected.
 - [ ] `supabase/tests/dashboard-parity.sql` and `retention-checks.sql` on staging, after 0016.
@@ -143,7 +143,7 @@ that is staging or the belief is stale. Tick these off as they are applied:
       save a product without a `filename` until that column is nullable. The catalog is unaffected either way: a row
       without `image_path` renders its legacy `/products/<filename>`. Then run `supabase/tests/storage-checks.sql`
       on staging.
-- [ ] **0019** copilot statistics — requires 0014 and 0006. Until it is applied `/dashboard/copilot` shows its error
+- [ ] **0019** copilot statistics — requires 0014 and 0006. Until it is applied `/admin/knowledge#copilot` shows its error
       state in both widgets (the RPC is missing); nothing else is affected. Then run `supabase/tests/copilot-checks.sql`
       on staging.
 - [ ] **0020** role model v2 (admin · manager · operator) — requires 0014–0019. **Apply it and deploy the release
@@ -152,7 +152,7 @@ that is staging or the belief is stale. Tick these off as they are applied:
       [After applying 0020](#after-applying-0020--owner-steps).
 - [ ] **0021** people analytics — requires 0016 and 0020. The R3 release calls its functions from `/admin` (overview),
       `/admin/users` and `/admin/users/<email>`: until it is applied those widgets show their error state (each fails
-      alone, CLAUDE.md §15) and `/dashboard`'s activity tab keeps 0016's own copy. Apply it with the R3 release, then run
+      alone, CLAUDE.md §15), while `/admin/knowledge` (0016 / 0019 functions) keeps working. Apply it with the R3 release, then run
       `supabase/tests/people-checks.sql` on staging. Owner steps: [After applying 0021](#after-applying-0021--owner-steps).
 - [ ] **0022** person removal — requires 0020 (and 0021 by order). **Apply it before (or with) the release that has
       the remove action**: without it a removal deletes the person's Supabase Auth account and then fails (`unknown` /
@@ -300,7 +300,7 @@ takes its "checklist completed" count from the new shared helper — the numbers
    See [TESTING.md](TESTING.md#people-analytics-checks-staging-only-after-0021).
 4. **Verify** (the R3 release is the one that calls these functions): `/admin` shows the overview and its compare
    table, `/admin/users` lists every allow-list row with admins as "no telemetry", a person's page
-   (`/admin/users/<email>`) shows their numbers, and `/dashboard` shows the same numbers as before.
+   (`/admin/users/<email>`) shows their numbers, and `/admin/knowledge` shows the same search and feedback numbers as before.
 5. **No type regeneration strictly needed**; the six functions are hand-written in `lib/supabase/database.types.ts` —
    compare with `npm run gen:types` when convenient.
 
@@ -537,8 +537,8 @@ call 0016's helpers.
 
 1. **Run `supabase/tests/copilot-checks.sql` on staging** — counts, rates and percentiles against a hand-computed
    table, the normalization corpus, the manager-only refusals (WT403), argument errors (WT400) and the grants.
-2. **Open `/dashboard/copilot`.** Both widgets must render; a range older than 30 days lists no questions from
-   before the cut-off, by design — `run_retention()` (0016) nulls the question text after 30 days.
+2. **Open `/admin/knowledge#copilot`.** The Copilot card and the Copilot half of "Topilmagan savollar" must render;
+   a range older than 30 days lists no questions from before the cut-off, by design — `run_retention()` (0016) nulls the question text after 30 days.
 3. **No type regeneration strictly needed**; `copilot_stats` and `copilot_unanswered` are hand-written in
    `lib/supabase/database.types.ts` — compare with `npm run gen:types` when convenient.
 
@@ -614,7 +614,7 @@ change above, like for any other allow-list write.
 
 Nothing is stored: the three functions are the whole migration. `drop function public.copilot_stats(timestamptz,
 timestamptz); drop function public.copilot_unanswered(timestamptz, timestamptz, integer); drop function
-private.copilot_normalize_question(text);` removes it, and `/dashboard/copilot` then shows its widgets' error state
+private.copilot_normalize_question(text);` removes it, and `/admin/knowledge#copilot` then shows its widgets' error state
 until the app release that added the tab is rolled back with it.
 
 ### Rolling back 0021

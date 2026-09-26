@@ -662,6 +662,49 @@ only when `activeBeatIndex` changes — 8 commits for a full scroll down and bac
 only beat 0), so the static page ships one drawing in the card; below lg each chapter's inline drawing is plain
 `<path>`s until it is armed off-screen, then draws once (`useRevealPhase`).
 
+## S03 monitoring IA — one question per admin page (2026-09-26)
+
+The four `/dashboard/*` tabs are gone (307 redirects in `next.config.js`), `/admin` is rebuilt, `/admin/knowledge`
+and `/admin/system` are new. No dependency added, no layout or operator module changed. Both trees built in scratch
+copies with CI's placeholder env (baseline `e62b9ec`); "Exact" is gzip level 9 over the route's
+`app-build-manifest.json` entry.
+
+Admin panel (no budget; the table the next change compares against):
+
+| Route | Before | After | Exact before → after |
+|---|---:|---:|---:|
+| `/admin` (Bosh panel) | 139 kB (page 5.68 kB) | **136 kB** (page 7.1 kB) | 138.779 → 135.547 kB |
+| `/admin/knowledge` (new: took `/dashboard/content`, `/quality`, `/copilot`) | — | 140 kB (page 11.5 kB) | — → 139.920 kB |
+| `/admin/system` (new: Web Vitals from `/dashboard`) | — | 133 kB (page 4.79 kB) | — → 133.231 kB |
+| `/admin/users` (directory) | 166 kB | 167 kB | 166.403 → 167.098 kB |
+| `/admin/users/[email]` (person, dynamic) | 162 kB | 163 kB | 162.056 → 162.740 kB |
+| `/admin/scripts/[id]` (largest editor) | 178 kB | 179 kB | 178.303 → 178.888 kB |
+| other `/admin/<table>/[id]` editors | 169 kB | 170 kB | +0.6 kB each |
+| `/admin/<table>` lists | 146 kB | 146 kB | −0.08 kB each |
+| `/admin/notifications` · `/admin/trash` · `/admin/versions/…` · `/admin/activity` | 130 · 129 · 131 · 109 kB | unchanged | +0.02–0.03 kB |
+| `/dashboard` · `/content` · `/copilot` · `/quality` | 135 · 141 · 135 · 135 kB | removed | — |
+
+`/admin` loses `BarList`, `ColumnBars` and the `BarGrow` machinery (the four charts became one table with static
+`InlineBar`s and server-SVG `Sparkline`s). Every page under the admin layout gains ~0.6 kB: `AdminShell`'s nav now
+imports `BookOpenCheck` (knowledge), and `Activity` (system) is shared with the empty-state icons. The people routes
+also carry the onboarding chip. `/admin/knowledge`'s page chunk is the content-health quick actions
+(`QuickActionButton` → `GateReportDialog`, as `/dashboard/content` had) plus `ContentHealthTabs`.
+
+**Operator routes — +0.03 to +0.45 kB, from removing the routes, not from new code.** `/` 160 → 161 kB (160.460 →
+160.830), `/company/onboarding` 160 → 161 kB (160.107 → 160.555), `/sales-process/scripts` 170 kB (169.874 →
+170.259), `/products` 166 kB (165.927 → 166.308), `/login` 200 → 201 kB. A third build — HEAD with only
+`app/[locale]/dashboard/` deleted — reproduces it (+355 B on `/`, +449 B on onboarding, +240 B on `/login`): once the
+four dashboard routes stop sharing zod's helper modules (`ZodIssueCode`, `util`), webpack moves them out of shared
+chunk `6243` into the empty-state icons chunk, and they compress less well there. What this change itself adds to
+operator routes is ~33 B (two entries in the empty-state registry, `attentionClear` and `knowledgeNoGaps`, both on
+the already-loaded `CheckCircle2` icon). Largest operator route: `/sales-process/scripts` 170.259 kB, under the
+180 kB budget; "shared by all" stays 89.5 kB.
+
+**Round trips.** Each monitoring page is one document request carrying all of its data — the reads run server-side
+in one `Promise.all`; no island fetches. What follows it in the network panel is Next's viewport link prefetching
+(nav, range pills, row links), which for these dynamic routes renders only up to their `loading.tsx`; the knowledge
+page's per-question FAQ links are `prefetch={false}`.
+
 ## Open items
 
 1. ~~Supabase browser client imported statically~~ - done in S14, see above. `/login` still imports it, by design.

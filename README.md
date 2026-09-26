@@ -3,8 +3,8 @@
 Internal sales knowledge base for WaterTech operators (Uzbekistan). See [CLAUDE.md](CLAUDE.md) for the
 full architecture, folder map, and coding rules.
 
-Roles (role model v2): `admin` — the owner — runs the admin panel (`/admin` CMS + people analytics,
-`/dashboard` monitoring) and may preview the operator app; `manager` (sales manager) and `operator` use the
+Roles (role model v2): `admin` — the owner — runs the admin panel (`/admin`: the Bosh panel overview, Xodimlar,
+Bilim sifati, the CMS and system pages; the old `/dashboard` URLs redirect there) and may preview the operator app; `manager` (sales manager) and `operator` use the
 operator app only and are the only roles telemetry records. Migrations 0020 (roles) and 0021 (people
 analytics) are applied by hand — order, Owner steps and rollbacks in [docs/MIGRATIONS.md](docs/MIGRATIONS.md);
 the auth model in [docs/SECURITY.md](docs/SECURITY.md).
@@ -57,7 +57,7 @@ Supabase credentials for those two routes specifically.
 
 This fallback does **not** cover every page: other content pages (`/sales-process/scripts`, `/faq`,
 `/products`, `/sales-process/objections`, `/sales-process/battle-cards`, `/tools/calculator`,
-`/dashboard`, …) fetch content directly (not through `generateStaticParams`) and are prerendered at build
+…) fetch content directly (not through `generateStaticParams`) and are prerendered at build
 time too — if Supabase is unreachable, those page builds fail (`lib/content/safe.ts`, "page" mode), which
 keeps the last good ISR page instead of publishing an empty knowledge base. `.github/workflows/ci.yml` builds
 against a placeholder project with `CONTENT_BUILD_MODE=allow-empty`, so its operator routes prerender empty;
