@@ -25,6 +25,21 @@ export const VALIDATION_KEYS = [
   "imageTooLarge",
   // Removing a person: the typed confirmation is not their email (lib/admin/users.ts).
   "confirmMismatch",
+  // The attestation's item bank and settings (lib/attestation/schemas.ts).
+  "outOfRange",
+  "optionsCount",
+  "duplicateOptionId",
+  "sourceRef",
+  "weightsSum",
+  "thresholdsOrder",
+  "turnsOrder",
+  "publishOptionsCount",
+  "publishKeyInOptions",
+  "publishKeyCount",
+  "publishBothLocales",
+  "publishPromptLength",
+  "publishOptionLength",
+  "publishUniqueOptions",
 ] as const;
 
 export type ValidationKey = (typeof VALIDATION_KEYS)[number];
@@ -61,7 +76,10 @@ export function validationText(translate: (key: string) => string, message: stri
 export const adminErrorMap: z.ZodErrorMap = (issue, ctx) => {
   switch (issue.code) {
     case z.ZodIssueCode.invalid_type:
-      return { message: issue.received === "undefined" || issue.received === "null" ? "required" : "invalid" };
+      if (issue.received === "undefined" || issue.received === "null") return { message: "required" };
+      // A number field bound with valueAsNumber hands over NaN when left empty
+      // or typed with letters (the attestation settings form).
+      return { message: issue.expected === "number" ? "number" : "invalid" };
     case z.ZodIssueCode.too_small:
       if (issue.type === "array") return { message: issue.minimum === 1 ? "minItems" : "tooShort" };
       if (issue.type === "string") return { message: issue.minimum === 1 ? "required" : "tooShort" };
