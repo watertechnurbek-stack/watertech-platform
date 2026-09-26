@@ -34,12 +34,13 @@ Never edit a file that has already been run anywhere. Corrections go into the ne
 | 0020 | `roles_admin_manager.sql` | Role model v2: `private.is_admin()`; `private.is_manager()` becomes its deprecated alias, so every 0014–0019 policy and function body means "admin"; `private.is_member()` covers `operator`/`manager`/`admin`; `allowed_users_role_chk` accepts `admin` (validated); the guard gets admin semantics (last admin WT460, self WT461, admin rows SQL-editor-only WT462); every `manager` row becomes `admin`, on the first run only | 0014, 0017 (and, by apply order, 0019) |
 | 0021 | `people_analytics.sql` | People analytics for the admin panel (R3/S02): `public.admin_people_overview`, `admin_person_summary`, `admin_person_daily`, `admin_person_sections`, `admin_person_recent_events`, `admin_top_content` — admin only (WT403), WT400 for bad arguments, no admin's telemetry counted; private helpers; `dashboard_operator_activity`'s checklist logic moved into `private.dashboard_checklist_completed`, which it now calls (same numbers) | 0016, 0020 |
 | 0022 | `person_removal.sql` | Removing a person from `/admin/users`: `GRANT DELETE` on `allowed_users` to `authenticated` + policy `allowed_users_admin_delete` (`is_admin()`; the 0017/0020 guard already refuses WT403 → WT460 → WT461 → WT462 on a DELETE, and the audit trigger records it); `public.admin_purge_person_history(p_email)` — SECURITY DEFINER, deletes one person's `telemetry_events` / `user_state` / `copilot_logs` rows, WT403 (claim, then the caller's row) / WT400 / WT461 / WT462, `EXECUTE` for `authenticated` only; refuses to run unless its owner skips RLS on those tables | 0020 (and, by apply order, 0021) |
+| 0023 | `attestation.sql` | The attestation (R4/S04, [ATTESTATION.md](ATTESTATION.md)): six tables — `assessment_config` (the singleton with the defaults), `assessment_items`, `assessment_attempts`, `assessment_messages`, `assessment_unlocks`, `assessment_audit` — each with RLS, an admin-only permissive policy **and** a restrictive admin-only one, and no policy an operator or a sales manager passes; version triggers; append-only transcript and audit; `SECURITY DEFINER` audit triggers on items and config; five `SECURITY DEFINER` admin functions (`admin_assessment_override`, `_clear_override`, `_reset`, `_reset_person`, `_unlock`); the service role's grants narrowed to what S05 writes; `admin_purge_person_history` re-created to delete attestation rows too; `public.run_assessment_retention()` (service role only) and its pg_cron job when pg_cron is enabled | 0022 (and 0020, 0014, 0013, 0002) |
 
 ### Which files has a project had?
 
 There is no migrations table, so ask the catalog: paste
 [supabase/tests/migration-status.sql](../supabase/tests/migration-status.sql) into the SQL editor and run
-it. It is **read-only** — safe on production — and answers one row per file (`0001` … `0022`, `true` when
+it. It is **read-only** — safe on production — and answers one row per file (`0001` … `0023`, `true` when
 the object only that file creates exists) plus three facts that should all be `true` (RLS on every public
 table, no policy naming `anon`, the access-token hook executable by `supabase_auth_admin` only). The first
 `false` row is the next file to apply. Whether the hook is *enabled* is a dashboard setting no query can
@@ -62,14 +63,19 @@ check files or those scenarios. `0021` likewise (R3/S02, 2026-09-24): both paths
 DELETE, a JWT on the session), the owner check, the rollback below (after which the pre-0022 `rls-checks.sql` and
 `people-checks.sql` pass again) and its order against 0020's rollback; 31 of 33 injected faults were caught by
 `rls-checks.sql` or `people-checks.sql` — the two left are not observable in one session (dropping the advisory lock)
-or under Supabase's default privileges (dropping the explicit `EXECUTE` grant). PostgREST,
+or under Supabase's default privileges (dropping the explicit `EXECUTE` grant). `0023` (the attestation, R4/S04,
+2026-09-26) on a local PostgreSQL 16 with the same kind of stub: applied on a database at `0022` (reached by the fresh
+path), re-run twice, both preflight aborts (no `0022`; a JWT on the session), every `supabase/tests/*.sql` file passing
+after it, the rollback below followed by a re-run of `0022` (after which the pre-0023 checks pass and
+`migration-status.sql` reads `0023` false) and `0023` applied again; the 32 staging-seed rows inserted as the service
+role and accepted by the database's publish rule; 23 injected faults each caught by `attestation-checks.sql`. PostgREST,
 GoTrue, pg_cron and Storage itself were not exercised — the staging runs are still the gate. The condensed
 production sequence, with the dashboard steps in place, is [AUDIT.md §F](AUDIT.md#f-production-apply-order).
 
 ### An existing project (staging, production)
 
 Run the pending files in numeric order, one at a time, checking the result of each before the next.
-`0014`, `0015`, `0016`, `0017`, `0018`, `0019`, `0020`, `0021` and then `0022` go last. `0013` through `0022` all abort with a clear
+`0014`, `0015`, `0016`, `0017`, `0018`, `0019`, `0020`, `0021`, `0022` and then `0023` go last. `0013` through `0023` all abort with a clear
 message when an earlier file is missing, so the order is enforced rather than assumed.
 
 `0014` is a security fix, and applying the SQL is only half of it: the access-token hook it rewrites has
@@ -108,7 +114,10 @@ statements into their own file and run them concurrently, outside a transaction.
     Everyone after that (operators, sales managers) is added at `/admin/users`.
 11. **`0021`.** After `0020` (it checks for `private.is_admin()` and the 0016 functions).
 12. **`0022`.** After `0021` (it checks for `private.is_admin()` and 0020's guard).
-13. `npm run seed:content` to load the content tables from `lib/content/*.ts`.
+13. **`0023`.** After `0022` (it checks for `private.is_admin()`, 0022's `admin_purge_person_history` and the 0002 /
+    0013 trigger functions).
+14. `npm run seed:content` to load the content tables from `lib/content/*.ts` — and, on staging, the attestation's
+    draft items (it needs `0023`).
 
 ## Pending checklist
 
@@ -158,6 +167,12 @@ that is staging or the belief is stale. Tick these off as they are applied:
       the remove action**: without it a removal deletes the person's Supabase Auth account and then fails (`unknown` /
       `unauthorized`), leaving them listed and active with no Auth account until it is applied and the removal
       retried. Owner steps: [After applying 0022](#after-applying-0022--owner-steps).
+- [ ] **0023** the attestation — requires 0022. **Apply it before (or with) the release that has "Attestatsiya" in
+      the admin nav**: until it exists the results and item-bank pages fail to load (their reads error), the settings
+      page shows the defaults and cannot save, and the daily cron answers `assessment_retention_failed` after running
+      the other retention.
+      Operators are unaffected (S04 has no candidate UI). Then run `supabase/tests/attestation-checks.sql` on staging.
+      Owner steps: [After applying 0023](#after-applying-0023--owner-steps).
 - [ ] Enable the Custom Access Token hook and walk the rest of
       [SECURITY.md §3](SECURITY.md#3-dashboard-checklist--the-owners-manual-steps) — 0014's SQL does
       nothing on its own.
@@ -357,6 +372,61 @@ Re-running 0022 is safe. **Re-running 0017 after it revokes the DELETE grant aga
 … from authenticated`): re-run 0022 straight after — removals answer `unauthorized` until then, and
 `rls-checks.sql` says "was 0017 re-run after it?".
 
+### After applying 0023 — Owner steps
+
+0023 adds the attestation's storage and its security boundary ([ATTESTATION.md](ATTESTATION.md) §12–§13,
+SECURITY.md §7): six tables nobody but the admin can read, five admin functions, the purge extended, a retention
+function, and one settings row with the defaults. It changes no existing data.
+
+1. **Check the prerequisites.** `supabase/tests/migration-status.sql`: `0022` must read `true`. 0023 aborts with a
+   message naming what is missing otherwise, and when the SQL editor's role impersonation is on.
+2. **Apply 0023** in the SQL editor as `postgres`, role impersonation off. Normal notices: `… does not exist,
+   skipping` on the first run (policies and triggers are dropped before they are created), and one of
+   `0023: pg_cron job watertech-run-assessment-retention scheduled daily at 21:35 UTC.` or
+   `0023: pg_cron is not enabled — /api/cron/content-scan runs public.run_assessment_retention() …`. An error saying
+   a function "runs as …, which RLS would narrow on" means the file was run as a role that does not own the tables:
+   run it as `postgres`.
+3. **Verify** (read-only, safe anywhere):
+
+   ```sql
+   -- six tables, RLS on, each with its restrictive admin-only policy
+   select c.relname, c.relrowsecurity,
+          (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname
+             and p.permissive = 'RESTRICTIVE') as restrictive
+     from pg_class c
+    where c.relnamespace = 'public'::regnamespace and c.relname like 'assessment\_%' and c.relkind = 'r'
+    order by 1;
+   -- expect 6 rows: true | 1
+   select id, retention_days, thresholds, version from public.assessment_config;
+   -- expect: 1 | 365 | {"green": 80, "yellow": 60} | 1
+   select p.proname, p.prosecdef, p.proconfig = array['search_path=""'] as empty_search_path,
+          has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated,
+          has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role
+     from pg_proc p
+    where p.pronamespace = 'public'::regnamespace
+      and (p.proname like 'admin\_assessment\_%' or p.proname = 'run_assessment_retention')
+    order by 1;
+   -- expect the five admin_assessment_* functions: true | true | true | false,
+   -- and run_assessment_retention: true | true | false | true
+   ```
+
+4. **Run the checks on staging**: `supabase/tests/attestation-checks.sql`, then `rls-checks.sql` (the five functions
+   refuse an operator and a sales manager with `WT403`) and `people-checks.sql` (the purge, now with attestation
+   rows). Never on production.
+5. **Deploy the release.** "Attestatsiya" appears in the admin nav under Monitoring. `/admin/assessments` shows
+   "Hali topshirilgan attestatsiya yo'q"; the settings show the defaults (40/60 for days 1–3, 20/80 for day 4;
+   green 80, yellow 60; 365 days); the item bank is empty. Review the settings and add the factory facts.
+6. **Staging only — seed the bank**: `npm run seed:content -- --dry-run`, then `npm run seed:content` (its guard
+   refuses production). It adds 32 draft items, eight per day; read them in `/admin/assessments/items`, publish what
+   is right, and add items or lower each day's item count in the settings — a day cannot start (S05) until its bank
+   has as many published items as it draws. On production the admin writes the bank in the UI.
+7. **No type regeneration strictly needed**; the 0023 tables and functions are hand-written in
+   `lib/supabase/database.types.ts` — compare with `npm run gen:types` when convenient.
+
+Re-running 0023 is safe (the settings row is kept as the admin saved it). **Re-running 0022 after it puts back the
+purge without the attestation tables** — a removal "with history" would then leave the person's attempts behind:
+re-run 0023 straight after (`attestation-checks.sql` says "was 0022 re-run after 0023?").
+
 ### Retention policy (0016)
 
 `public.run_retention()` is the only place the numbers live (its `constant` declarations); this table
@@ -373,6 +443,12 @@ describes them.
 The dashboard's longest range (93 days, `MAX_RANGE_SPAN_DAYS` in `lib/dashboard/range.ts`) compares against the 93
 days before it, 186 days in total — so at that one range the previous window's oldest ~6 days are already
 pruned and the KPI deltas lean positive. Every shorter range is unaffected.
+
+The attestation (0023) has its own function, `public.run_assessment_retention()`: attempts started more than
+`assessment_config.retention_days` ago (default 365, 30–3650, set in `/admin/assessments/settings`) are deleted with
+their conversations, and unlocks older than the same window. `assessment_audit` has no retention. Its pg_cron job
+(21:35 UTC) runs five minutes after 0016's; without pg_cron the cron route calls it after `run_retention()`, each
+whether or not the other failed.
 
 ## Running `rls-checks.sql` on staging
 
@@ -670,3 +746,51 @@ commit;
 ```
 
 The guard and audit triggers stay as they are: they already covered deletes, from the SQL editor too.
+
+### Rolling back 0023
+
+**This deletes data**: every attempt, conversation, unlock, bank item, the settings and the attestation audit. Export
+what should be kept first (Table Editor → export, or `copy … to stdout`). Roll back the release with the
+"Attestatsiya" pages with it, and roll 0023 back **before** 0022 if both go (0022's rollback drops the purge function
+0023 re-created). One transaction, then re-run 0022 — verified on PostgreSQL 16: afterwards the pre-0023
+`rls-checks.sql`, `people-checks.sql` and `retention-checks.sql` pass, and `migration-status.sql` reads `0023` false.
+
+```sql
+begin;
+do $$
+begin
+  -- Dynamic: cron.job exists only where pg_cron is enabled.
+  if to_regclass('cron.job') is not null then
+    perform cron.unschedule(j.jobid) from cron.job j where j.jobname = 'watertech-run-assessment-retention';
+  end if;
+end $$;
+drop function if exists public.run_assessment_retention(boolean);
+drop function if exists public.admin_assessment_override(uuid, numeric, text, integer);
+drop function if exists public.admin_assessment_clear_override(uuid, text, integer);
+drop function if exists public.admin_assessment_reset(uuid, integer);
+drop function if exists public.admin_assessment_reset_person(text);
+drop function if exists public.admin_assessment_unlock(text, smallint);
+drop table if exists
+  public.assessment_messages, public.assessment_attempts, public.assessment_unlocks,
+  public.assessment_items, public.assessment_config, public.assessment_audit;
+drop function if exists private.assessment_admin_actor(text);
+drop function if exists private.audit_assessment_items();
+drop function if exists private.audit_assessment_config();
+drop function if exists private.assessment_bump_version();
+drop function if exists private.assessment_append_only();
+drop function if exists private.assessment_item_publishable(text, text, text, jsonb, text[], text, text);
+drop function if exists private.assessment_answer_key_valid(jsonb, text[]);
+drop function if exists private.assessment_options_valid(jsonb);
+drop function if exists private.assessment_day_settings_valid(jsonb);
+drop function if exists private.assessment_thresholds_valid(jsonb);
+drop function if exists private.assessment_weights_valid(jsonb);
+drop function if exists private.assessment_json_keys_are(jsonb, text[]);
+drop function if exists private.assessment_json_int_between(jsonb, integer, integer);
+notify pgrst, 'reload schema';
+commit;
+```
+
+Then **re-run `0022_person_removal.sql`**: it puts back its own `admin_purge_person_history` — the 0023 body still
+names the dropped tables, and a plpgsql body is not checked at drop time, so without the re-run every removal "with
+history" would fail at run time.
+

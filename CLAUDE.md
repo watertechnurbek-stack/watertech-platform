@@ -5,16 +5,17 @@
 > Read it fully before the first edit of every session. When a task conflicts with a rule
 > here, **stop and flag the conflict** — do not improvise.
 >
-> Last reviewed 2026-09-25 against the repo (roadmap R3: roles v2 · admin analytics · company stories — R3 release
-> audit, docs/AUDIT.md).
-> Sections marked **(R3/Sxx)** describe what that roadmap step introduces. If the code does not have it yet,
-> that step has not been merged: implement the step first — never write new code against the old shape.
+> Last reviewed 2026-09-26 against the repo (roadmap R3: roles v2 · admin analytics · company stories — R3 release
+> audit, docs/AUDIT.md; roadmap R4/S04: the attestation's foundation, docs/ATTESTATION.md).
+> Sections marked **(R3/Sxx)** or **(R4/Sxx)** describe what that roadmap step introduces. If the code does not have
+> it yet, that step has not been merged: implement the step first — never write new code against the old shape.
 
 ## 1. What this project is
 
 Internal sales knowledge base for WaterTech operators (Uzbekistan). Operators and sales managers read
 call scripts, objection handling, product catalog, FAQ, competitor battle-cards in the **operator app**;
-the owner (role `admin`) runs the **admin panel** (`/admin` CMS + people analytics, `/dashboard` monitoring).
+the owner (role `admin`) runs the **admin panel** (`/admin` CMS + people analytics + the attestation, `/dashboard`
+monitoring).
 ~30 users, Google OAuth, allow-list based roles `admin` | `manager` | `operator` — see §7 "Role model v2".
 
 - Framework: **Next.js 14.2 App Router**, React 18, TypeScript `strict`, Tailwind 3.4.
@@ -61,6 +62,7 @@ app/
       <section>/loading.tsx        section-specific skeleton (products, sales-process, dashboard)
     (admin)/admin/                 admin panel: CMS + people analytics (own AdminShell, never imports AppShell)
       users/[email]/               one person's activity page (R3/S04)
+      assessments/                 the attestation: results, item bank (items/[id] editor), settings (R4/S04)
     dashboard/                     admin monitoring tabs (rendered inside AdminShell from R3/S03)
     login/                         public
     offline/                      Serwist offline fallback
@@ -84,6 +86,7 @@ components/
     people/                        PeopleDirectory, PersonCard, PersonCardMenu, PersonAvatar, RoleBadge, PersonHeader,
                                    PersonDetail, PersonTimeline, PersonAccessPanel, RemovePersonDialog,
                                    PeopleActivityList (R3/S04, removal 0022) — §15
+    assessments/                   the attestation's admin screens (R4/S04) — §15
   changelog/                       ChangelogEntryCard
   copilot/                        operator copilot UI
   dashboard/                       monitoring widgets/KPIs (RangePicker, OperatorFilter, QualityPanel…)
@@ -116,6 +119,11 @@ lib/
                                    directory.ts (R3/S04) is the people directory's pure logic (join with
                                    the overview, summary, URL state, search, sort — client-safe) and
                                    person-page.ts the person page's (section labels, timeline sentences).
+                                   actions/assessment-admin.ts (DI) + actions/assessments.ts ("use server")
+                                   are the attestation's admin writes (R4/S04).
+  attestation/                     the attestation (R4/S04, docs/ATTESTATION.md §14): types.ts, schemas.ts and
+                                   item-bank.ts are client-safe; rubrics, scoring, items-draw, config,
+                                   repository and operator-view are `server-only` — never on a client path
   copilot/                         copilot prompt/response logic (gemini.ts, retrieve.ts, docs.ts, protocol.ts)
   agents/                         server "agents": publish-gate/ (runs before every publish), stale-scan.ts
                                    (daily cron), retention.ts — not copilot code
@@ -139,9 +147,11 @@ messages/
 hooks/                             useTrack, useNow, useMounted, useSessionUser…
 supabase/
   migrations/*.sql                 every schema change is a numbered migration file — apply order in docs/MIGRATIONS.md
-  seed/                            seed scripts (content TS files are the seed source); guard.ts refuses production (§7)
-  tests/*.sql                      SQL checks: rls, dashboard-parity, retention, storage, copilot, people (staging only,
-                                   they write rolled-back fixtures); migration-status.sql (read-only, any project)
+  seed/                            seed scripts (content TS files are the seed source); guard.ts refuses production (§7);
+                                   assessment-items.ts — the attestation bank's staging drafts (R4/S04)
+  tests/*.sql                      SQL checks: rls, dashboard-parity, retention, storage, copilot, people, attestation
+                                   (staging only, they write rolled-back fixtures); migration-status.sql (read-only,
+                                   any project)
 tests/
   unit/                            vitest unit tests mirror lib/ paths
   e2e/                             Playwright end-to-end tests
@@ -153,6 +163,7 @@ docs/
   MIGRATIONS.md                    apply order, per-migration runbooks, rollbacks
   PERF.md                          bundle budgets, measuring method, history
   AUDIT.md                         audit findings (Audit-2, S17): fixed, open, residual risk
+  ATTESTATION.md                   the attestation's spec: scoring, pace, visibility, data model, S05 API (R4)
 public/products/                   catalog images (never rename files — referenced by lib/content/products.ts)
 sentry.client.config.ts, sentry.server.config.ts, sentry.edge.config.ts
 instrumentation.ts                 Sentry/Next instrumentation hook
@@ -178,8 +189,15 @@ components/admin/charts/    ChartCard  StatCard  DeltaBadge  BarList  ColumnBars
 components/admin/people/    PeopleDirectory  PersonCard  PersonCardMenu  PersonAvatar  RoleBadge  PersonHeader
                             PersonDetail  PersonTimeline  PersonAccessPanel  RemovePersonDialog  PeopleActivityList
                             (R3/S04; PersonCardMenu + RemovePersonDialog: person removal, 0022)
+components/admin/assessments/  AssessmentsSubNav  AssessmentsEmpty  AssessmentResultsTable  ScoreBandBadge
+                            AssessmentItemsBank  BankReadiness  AssessmentItemEditor  ItemPublishChecklist
+                            AssessmentSettingsForm  RubricOverview (R4/S04)
+lib/attestation/            types  schemas  item-bank (client-safe) · rubrics  scoring  items-draw  config  repository
+                            operator-view (server-only) (R4/S04)
 lib/auth/                   claims  server-session  session-user  sign-out  purge  ban  delete-account  find-auth-users
 app/[locale]/(admin)/admin/users/   page.tsx (directory) + loading.tsx, [email]/page.tsx (person) + loading.tsx (R3/S04)
+app/[locale]/(admin)/admin/assessments/   layout.tsx (heading + sub-nav) + loading.tsx, page.tsx (results),
+                            items/page.tsx (bank), items/[id]/page.tsx (editor; `new` creates), settings/page.tsx (R4/S04)
 app/[locale]/(admin)/admin/(overview)/   page.tsx + loading.tsx of /admin — a route group, so the overview has its
                             own skeleton while ../loading.tsx stays the CMS pages' generic one (R3/S03)
 components/ui/              Dialog  ErrorBoundary  PinButton  RecentRecorder  Skeleton  SubmitButton  Toaster
@@ -360,8 +378,8 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   checks (session, zod incl. the typed confirmation `removeUserSchema`, the row, `accessViolation` with
   `after: null`) → the Supabase Auth account(s) deleted (`lib/auth/delete-account.ts`, service role; `failed` →
   `auth_sync_failed`, nothing else touched) → with `purgeHistory`, `admin_purge_person_history` (telemetry,
-  user_state, copilot_logs; SECURITY DEFINER, refuses a non-admin claim or row `WT403`, self `WT461`, an admin
-  row `WT462`) → the allow-list row deleted through the admin's own session (`allowed_users_admin_delete` +
+  user_state, copilot_logs, and since 0023 attestation attempts, messages and unlocks; SECURITY DEFINER, refuses a
+  non-admin claim or row `WT403`, self `WT461`, an admin row `WT462`) → the allow-list row deleted through the admin's own session (`allowed_users_admin_delete` +
   the guard; `access_audit` records it and is never purged). The row goes last because it is what a retry
   finds the person by.
 - SQL helpers: `private.is_member()` = any of the three roles; `private.is_admin()` = `admin` — the one
@@ -402,7 +420,8 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   into a code — its message, hint and constraint names stay on the server. Database-raised states map
   by SQLSTATE, never by message: `23505` → `id_taken` / `email_taken`, `23503` → `reference_in_use`,
   `23514` / `WT400` → `validation`, `WT403` / `42501` → `unauthorized`, `WT409` → `version_conflict`, `WT460` →
-  `last_admin`, `WT461` → `self_change`, `WT462` → `admin_locked`. The client turns the code into copy through
+  `last_admin`, `WT461` → `self_change`, `WT462` → `admin_locked`; the attestation's functions add `WT404` →
+  `not_found` (`assessmentDbCode`). The client turns the code into copy through
   `hooks/useActionError.ts` and `admin.errors.<code>`; a new code needs both message files (§13) —
   `tests/unit/admin/messages.test.ts` fails otherwise.
 - Every argument of a Server Action is browser input, whatever its TS type: parse it with zod (an id with
@@ -411,6 +430,17 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   writes nothing when it blocks: create/update when saved as published (on the candidate), `setStatus`
   and so bulk publish (on the stored row), a version restore onto a published row (on the merged
   candidate), the dashboard's quick publish. A restore from the trash always comes back as a draft.
+- **Attestation (R4/S04, 0023, docs/ATTESTATION.md).** Results are the admin's alone — the first requirement; a
+  design that could let an operator or a sales manager read a score is wrong. The six `assessment_*` tables have an
+  admin-only permissive policy **and** a restrictive one, and no policy a candidate passes — not even on their own
+  attempt. A candidate route (S05) reads through `operatorAttestationRepo(sessionEmail(session))` (service role,
+  **every** query filtered by the verified session's email) and answers only what `lib/attestation/operator-view.ts`
+  builds (per-day status, `opensOn`, `afterDay` — never a score, band, rubric word, key or explanation). The admin
+  writes items and settings under RLS with version guards (audited by trigger) and attempts / unlocks only through the
+  five `SECURITY DEFINER` `admin_assessment_*` functions. `rubrics`, `scoring`, `items-draw`, `config`, `repository`
+  and `operator-view` import `server-only`; the tables stay out of the CMS registry (no stale scan, trash, versions or
+  gate bundle would copy an answer key); `tests/unit/attestation/confidentiality.test.ts` holds all of it. A CHECK
+  validator on a table the service role writes never calls another `private.*` function (no `USAGE` there for it).
 - A content write goes through `contentActions()` (`lib/admin/actions/factory.ts`) and its registry
   entry, with the RLS-scoped session client — never the service role. Creating uses `.insert()` so a
   taken id fails as `id_taken` instead of overwriting a live row; updating and deleting are guarded on
@@ -631,3 +661,14 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   relative times ("2 soat oldin") render after mount via `useNow()` (§3 hydration rules). Never render
   `Intl` output of `uz-UZ` in a client component before mount: Node's ICU and the browser format it differently,
   which is a hydration mismatch (`components/admin/RelativeTime.tsx` shows a plain `YYYY-MM-DD HH:MM` until then).
+- **Attestation (R4/S04).** `/admin/assessments` ("Attestatsiya", Monitoring, after "Xodimlar") has one sub-nav —
+  Natijalar · Savollar banki · Sozlamalar — under `app/[locale]/(admin)/admin/assessments/layout.tsx`, and every page
+  calls `requireAdminPage` before its first read (`tests/unit/auth/admin-gates.test.ts`). Copy is under
+  `pages.admin.assessments.*`. Natijalar is the "Hali topshirilgan attestatsiya yo'q" empty state until someone
+  submits (S07 builds the results matrix). The item bank's filters live in `?day=&topic=&status=&difficulty=&q=`
+  (`lib/attestation/item-bank.ts`, written back with `history.replaceState`); its rows carry no answer key or
+  explanation. The editor (`items/[id]`, `new` creates — never an item id) is built from the CMS primitives, not the
+  registry, with the publish checklist live beside the form (`itemPublishChecks`, the rules the action and the
+  database apply again). Settings save one version-guarded row; the rubrics are rendered on the server only
+  (`RubricOverview`, plain strings — `rubrics.ts` is `server-only`). A score shows as `ScoreBandBadge`: percentage and
+  band name as text, the band colour only as a dot and tint.
