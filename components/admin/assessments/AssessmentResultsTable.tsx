@@ -63,10 +63,10 @@ export function AssessmentResultsTable({ rows, labels }: AssessmentResultsTableP
                   {row.email}
                 </Link>
               </td>
-              <td className="px-4 py-2.5 text-primary-dark">{row.dayLabel}</td>
-              <td className="px-4 py-2.5 tabular-nums text-text-secondary">{row.attemptLabel}</td>
-              <td className="px-4 py-2.5 text-primary-dark">{row.statusLabel}</td>
-              <td className="px-4 py-2.5 tabular-nums text-text-secondary">{row.submittedLabel}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 text-primary-dark">{row.dayLabel}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-text-secondary">{row.attemptLabel}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 text-primary-dark">{row.statusLabel}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-text-secondary">{row.submittedLabel}</td>
               <td className="px-4 py-2.5">
                 {row.score ? (
                   <span className="inline-flex flex-wrap items-center gap-1.5">

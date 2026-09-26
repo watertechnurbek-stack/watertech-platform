@@ -122,7 +122,7 @@ const ItemRow = memo(function ItemRow({ row, busy, disabled, onToggleStatus, onD
             disabled={busy || disabled}
             aria-busy={busy}
             aria-label={t("actions.rowLabel", { action: statusAction, id: row.id })}
-            className="rounded-lg border border-border bg-surface px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-alt hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+            className="whitespace-nowrap rounded-lg border border-border bg-surface px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-alt hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
           >
             {statusAction}
           </button>
