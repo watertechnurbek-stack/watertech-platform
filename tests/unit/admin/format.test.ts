@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelative, formatStableDateTime, type RelativeTimeTranslator } from "@/lib/admin/format";
+import { formatRelative, formatScorePercent, formatStableDateTime, type RelativeTimeTranslator } from "@/lib/admin/format";
 
 const t: RelativeTimeTranslator = (key, values) => (values ? `${key}:${values.count}` : key);
 const NOW = Date.parse("2026-09-24T12:00:00.000Z");
@@ -43,5 +43,14 @@ describe("formatStableDateTime", () => {
 
   it("accepts PostgREST's +00:00 form", () => {
     expect(formatStableDateTime("2026-09-24T08:05:00+00:00")).toBe("2026-09-24 13:05");
+  });
+});
+
+describe("formatScorePercent", () => {
+  it("shows a 0–100 score as a percentage with at most one decimal", () => {
+    // Node's ICU spaces and separates by locale; the digits are what matter.
+    expect(formatScorePercent(72.46, "uz").replace(/\s/g, "")).toMatch(/^72[.,]5%$/);
+    expect(formatScorePercent(100, "ru").replace(/\s/g, "")).toBe("100%");
+    expect(formatScorePercent(0, "uz").replace(/\s/g, "")).toBe("0%");
   });
 });

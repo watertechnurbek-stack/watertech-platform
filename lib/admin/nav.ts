@@ -4,6 +4,7 @@ import {
   Bell,
   Bot,
   Boxes,
+  ClipboardCheck,
   FileStack,
   HelpCircle,
   History,
@@ -59,6 +60,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
     items: [
       { href: "/admin", label: "overview", icon: LayoutDashboard, exact: true },
       { href: "/admin/users", label: "people", icon: UsersRound },
+      { href: "/admin/assessments", label: "assessments", icon: ClipboardCheck },
       { href: "/dashboard", label: "activityDetails", icon: Activity, exact: true },
       { href: "/dashboard/content", label: "contentHealth", icon: FileStack },
       { href: "/dashboard/quality", label: "quality", icon: Star },

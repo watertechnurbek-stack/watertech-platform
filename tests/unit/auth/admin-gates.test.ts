@@ -49,4 +49,24 @@ describe("admin page gates", () => {
       expect(read(file)).toMatch(/await requireAdminPage\(locale\)/);
     }
   );
+
+  // The attestation (docs/ATTESTATION.md §7): results, the item bank with its
+  // answer keys, the rubrics — every page refuses a non-admin itself, before
+  // it reads anything.
+  const assessmentPages = pages("app/[locale]/(admin)/admin/assessments");
+
+  it("finds the attestation pages", () => {
+    expect(assessmentPages.map((file) => file.split(path.sep).join("/")).sort()).toEqual([
+      "app/[locale]/(admin)/admin/assessments/items/[id]/page.tsx",
+      "app/[locale]/(admin)/admin/assessments/items/page.tsx",
+      "app/[locale]/(admin)/admin/assessments/page.tsx",
+      "app/[locale]/(admin)/admin/assessments/settings/page.tsx",
+    ]);
+  });
+
+  it.each(assessmentPages)("%s calls requireAdminPage before any read", (file) => {
+    const source = read(file);
+    expect(source).toMatch(GATE);
+    expect(source.search(GATE)).toBeLessThan(source.indexOf("adminAttestationRepo()"));
+  });
 });
