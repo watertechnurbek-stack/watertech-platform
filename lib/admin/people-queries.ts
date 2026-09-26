@@ -132,7 +132,7 @@ export async function fetchPersonTimeline(
 }
 
 // One person's slices of the 0016 dashboard functions — the same functions the
-// Faollik tab calls, filtered with p_operator (S02: "not new").
+// monitoring pages call, filtered with p_operator (S02: "not new").
 
 /** Events per Tashkent hour of the day (index = hour), over the range. */
 export async function fetchPersonHourly(email: string, range: PeopleRange): Promise<WidgetData<number[]>> {

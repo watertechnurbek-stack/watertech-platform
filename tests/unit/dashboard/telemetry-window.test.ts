@@ -11,7 +11,16 @@ vi.mock("@/lib/dashboard/content-health", () => ({
   getContentHealth: async () => ({ drafts: [], draftsTotal: 4, stale: [], staleTotal: 0, missingRu: [], missingRuTotal: 0 }),
 }));
 
-import { fetchActivityTelemetry, fetchDashboardKpis, fetchQualityTelemetry } from "@/lib/dashboard/telemetry-window";
+import {
+  fetchActivityTelemetry,
+  fetchDashboardKpis,
+  fetchKpiTotals,
+  fetchNotHelpful,
+  fetchQualityTelemetry,
+  fetchWebVitals,
+  fetchZeroResultSearches,
+  settleWidget,
+} from "@/lib/dashboard/telemetry-window";
 
 const RANGE: DashboardRange = { from: "2026-09-14", to: "2026-09-20", operatorEmail: null };
 // Tashkent midnight is 19:00 UTC the day before; the previous 7-day range starts 2026-09-07.
@@ -164,5 +173,72 @@ describe("fetchQualityTelemetry", () => {
   it("puts the whole panel in its error state when any of its calls fails", async () => {
     respond(["dashboard_most_viewed"]);
     expect(await fetchQualityTelemetry(RANGE)).toEqual({ ok: false });
+  });
+});
+
+// The monitoring pages' one-list-per-call reads (S03): each list is its own
+// widget and fails on its own.
+
+describe("fetchKpiTotals", () => {
+  it("returns the exact totals of both windows", async () => {
+    expect(await fetchKpiTotals(RANGE)).toEqual({
+      ok: true,
+      data: {
+        current: { activeOperators: 2, activeMs: 1000, zeroResultSearches: 3 },
+        previous: { activeOperators: 1, activeMs: 500, zeroResultSearches: 0 },
+      },
+    });
+    expect(rpc).toHaveBeenCalledWith("dashboard_kpis", { ...WINDOW, p_prev_from: PREVIOUS_START });
+  });
+
+  it("is { ok: false } on an error or no row", async () => {
+    respond(["dashboard_kpis"]);
+    expect(await fetchKpiTotals(RANGE)).toEqual({ ok: false });
+    respond([], { dashboard_kpis: [] });
+    expect(await fetchKpiTotals(RANGE)).toEqual({ ok: false });
+  });
+});
+
+describe("fetchZeroResultSearches / fetchNotHelpful / fetchWebVitals", () => {
+  it("call one function each, with the person filter and the limit", async () => {
+    const filtered = { ...RANGE, operatorEmail: "op@watertech.uz" };
+    expect(await fetchZeroResultSearches(filtered, 1)).toEqual({
+      ok: true,
+      data: [{ query: "kafolat", count: 2, lastSeenIso: "2026-09-20T08:00:00.000Z" }],
+    });
+    expect(rpc).toHaveBeenCalledWith("dashboard_zero_result_searches", {
+      ...WINDOW,
+      p_operator: "op@watertech.uz",
+      p_limit: 1,
+    });
+
+    expect(await fetchNotHelpful(RANGE)).toEqual({ ok: true, data: [{ path: "/faq", count: 1 }] });
+    expect(rpc).toHaveBeenCalledWith("dashboard_not_helpful", { ...WINDOW, p_limit: 100 });
+
+    expect(await fetchWebVitals(RANGE)).toEqual({
+      ok: true,
+      data: [{ name: "LCP", p50: 1800, p75: 2400, samples: 3 }],
+    });
+    expect(rpc).toHaveBeenCalledWith("dashboard_web_vitals", WINDOW);
+    expect(rpc).toHaveBeenCalledTimes(3);
+  });
+
+  it("fail alone", async () => {
+    respond(["dashboard_not_helpful"]);
+    expect(await fetchNotHelpful(RANGE)).toEqual({ ok: false });
+    expect((await fetchZeroResultSearches(RANGE)).ok).toBe(true);
+    expect((await fetchWebVitals(RANGE)).ok).toBe(true);
+  });
+});
+
+describe("settleWidget", () => {
+  it("wraps a value, and turns a throw into { ok: false } with a log line", async () => {
+    expect(await settleWidget("counts", async () => 3)).toEqual({ ok: true, data: 3 });
+    expect(
+      await settleWidget("counts", async () => {
+        throw new Error("content_faqs: permission denied");
+      })
+    ).toEqual({ ok: false });
+    expect(consoleError).toHaveBeenCalledWith("[dashboard] counts failed:", "content_faqs: permission denied");
   });
 });

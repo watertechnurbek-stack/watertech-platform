@@ -15,11 +15,16 @@ import type { LucideIcon } from "lucide-react";
 //                bars, value above each one. Scrolls sideways on its own when
 //                the columns do not fit.
 //   CompareTable many people or items across many metrics, sortable (client).
-//   ChartCard    the titled panel any of the above sits in.
+//   InlineBar    a number in a table cell with a short bar beside it.
+//   Sparkline    the shape of a daily series in a table cell (SVG line).
+//   ChartCard    the titled panel any of the above sits in: title, one-line
+//                description, content, and the `action` slot for its one
+//                "all" link — the same anatomy on every monitoring page.
 //
 // Bars grow once through BarGrow/BarGrowGroup; lengths are inline style
-// percentages. Chart tokens (bg-chart-*) are bar fills only — every number is
-// printed as text-primary-dark next to its bar, so colour never carries it.
+// percentages. Chart tokens (bg-/stroke-/fill-chart-*) are marks only — every
+// number is printed as text-primary-dark next to its mark, so colour never
+// carries it.
 
 export interface ChartCardProps {
   icon: LucideIcon;
@@ -29,13 +34,20 @@ export interface ChartCardProps {
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** The section's anchor — a link elsewhere can land on this card
+   * (/admin/knowledge#gaps). */
+  id?: string;
 }
 
 /** A titled panel in the admin card style. The title is an <h2>, so a screen
- * reader can jump between the page's panels by heading. */
-export function ChartCard({ icon: Icon, title, description, action, children, className = "" }: ChartCardProps) {
+ * reader can jump between the page's panels by heading. With an `id` the card
+ * is a link target; scroll-mt keeps it clear of the sticky header. */
+export function ChartCard({ icon: Icon, title, description, action, children, className = "", id }: ChartCardProps) {
   return (
-    <section className={`min-w-0 rounded-2xl border border-border bg-surface p-4 shadow-softer sm:p-5 ${className}`}>
+    <section
+      id={id}
+      className={`min-w-0 scroll-mt-20 rounded-2xl border border-border bg-surface p-4 shadow-softer sm:p-5 ${className}`}
+    >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">

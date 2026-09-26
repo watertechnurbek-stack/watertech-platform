@@ -36,7 +36,7 @@ export async function generateMetadata({ params: { locale, email } }: PersonPage
  * segment is parsed with the allow-list's own schema (parsePersonParam) and must
  * be a row of `allowed_users` — anything else is a 404, which is also what a
  * person removed from the list gets. Range from ?from&to, the last 7 days by
- * default; the `op` filter of the dashboard tabs has no meaning here (the person
+ * default; the `op` filter of the knowledge page has no meaning here (the person
  * is the path) and is ignored.
  *
  * The allow-list row and every number — one call each of a 0021 / 0016 function

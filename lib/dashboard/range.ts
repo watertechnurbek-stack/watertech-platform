@@ -35,19 +35,32 @@ function singleParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** URL is the source of truth for the dashboard's range + operator filter —
- * every tab parses the same three GET params (?from&to&op) the same way, so
- * switching tabs or reloading never loses the manager's selection. Invalid
- * or missing values fall back to "last 7 days including today", clamped to
- * MAX_RANGE_SPAN_DAYS. */
-export function parseDashboardRange(searchParams: Record<string, string | string[] | undefined>): DashboardRange {
+/** Days a range-picking page shows when its URL names no range. */
+export const DEFAULT_RANGE_DAYS = 7;
+
+/** The monitoring pages' default (/admin, /admin/knowledge, /admin/system):
+ * two weeks, the window the people directory's cards cover
+ * (DIRECTORY_WINDOW_DAYS in lib/admin/directory.ts), so the overview's team
+ * sparklines and the directory's show the same days. */
+export const MONITORING_RANGE_DAYS = 14;
+
+/** URL is the source of truth for a monitoring page's range + person filter —
+ * every page parses the same three GET params (?from&to&op) the same way, so
+ * following a link between them or reloading never loses the admin's
+ * selection. Invalid or missing values fall back to "the last `defaultDays`
+ * days including today" (DEFAULT_RANGE_DAYS unless the page says otherwise),
+ * clamped to MAX_RANGE_SPAN_DAYS. */
+export function parseDashboardRange(
+  searchParams: Record<string, string | string[] | undefined>,
+  { defaultDays = DEFAULT_RANGE_DAYS }: { defaultDays?: number } = {}
+): DashboardRange {
   const rawFrom = singleParam(searchParams.from);
   const rawTo = singleParam(searchParams.to);
   const rawOp = singleParam(searchParams.op);
 
   const today = todayInTashkent();
   const to = isValidDateString(rawTo) && rawTo <= today ? rawTo : today;
-  let from = isValidDateString(rawFrom) ? rawFrom : addDays(to, -6);
+  let from = isValidDateString(rawFrom) ? rawFrom : addDays(to, -(Math.max(1, Math.trunc(defaultDays)) - 1));
   if (from > to) from = to;
   if (daysBetween(from, to) > MAX_RANGE_SPAN_DAYS) from = addDays(to, -MAX_RANGE_SPAN_DAYS);
 
@@ -84,20 +97,48 @@ export function rangeDayCount(range: Pick<DashboardRange, "from" | "to">): numbe
   return daysBetween(range.from, range.to) + 1;
 }
 
+/** The windows RangePicker offers, in days — one vocabulary on every admin page
+ * that has a range (the overview, knowledge quality, the technical page, a
+ * person's page). */
+export const RANGE_PRESET_DAYS = [7, 14, 30] as const;
+
 export interface RangePreset {
   /** Also the `dashboard.ranges.<key>` message key of the pill's label. */
-  key: "today" | "7d" | "30d" | "month";
+  key: `${(typeof RANGE_PRESET_DAYS)[number]}d`;
   from: string;
   to: string;
 }
 
-export function buildRangePresets(): RangePreset[] {
-  const today = todayInTashkent();
-  const monthStart = `${today.slice(0, 7)}-01`;
-  return [
-    { key: "today", from: today, to: today },
-    { key: "7d", from: addDays(today, -6), to: today },
-    { key: "30d", from: addDays(today, -29), to: today },
-    { key: "month", from: monthStart, to: today },
-  ];
+/** `today` is a parameter only so a test can pin it. */
+export function buildRangePresets(today: string = todayInTashkent()): RangePreset[] {
+  return RANGE_PRESET_DAYS.map((days) => ({ key: `${days}d`, ...lastDaysRange(days, today) }));
+}
+
+/**
+ * The query that carries `range` (and its person filter) to another page whose
+ * own default window is `defaultDays` long: `from`/`to` only when the range is
+ * not that default, `op` only when set — so a link from a page left on its
+ * default stays clean, and one from a page set to 30 days opens the target on
+ * the same 30 days. Returned as params, so a caller can add its own before
+ * formatting.
+ */
+export function rangeSearchParams(
+  range: DashboardRange,
+  defaultDays: number,
+  today: string = todayInTashkent()
+): URLSearchParams {
+  const params = new URLSearchParams();
+  const fallback = lastDaysRange(defaultDays, today);
+  if (range.from !== fallback.from || range.to !== fallback.to) {
+    params.set("from", range.from);
+    params.set("to", range.to);
+  }
+  if (range.operatorEmail) params.set("op", range.operatorEmail);
+  return params;
+}
+
+/** `path` with `params` and an optional `#hash`: "/admin/knowledge?from=…#gaps". */
+export function withSearch(path: string, params: URLSearchParams, hash?: string): string {
+  const query = params.toString();
+  return `${path}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
 }

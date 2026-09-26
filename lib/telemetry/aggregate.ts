@@ -32,6 +32,13 @@ export function todayInTashkent(): string {
   return new Date(Date.now() + TASHKENT_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/** The Tashkent calendar date (YYYY-MM-DD) an instant falls on; null for an
+ * unparsable timestamp. */
+export function tashkentDayOf(iso: string): string | null {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : new Date(ms + TASHKENT_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 export function isValidDateString(s: string | undefined): s is string {
   return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime());
 }

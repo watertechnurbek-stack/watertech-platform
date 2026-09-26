@@ -7,7 +7,7 @@ import {
   type OperatorSummary,
   type WebVitalSummary,
 } from "@/lib/telemetry/aggregate";
-import { buildDashboardKpis, type DashboardKpis } from "@/lib/dashboard/kpi";
+import { buildDashboardKpis, type DashboardKpiTotals, type DashboardKpis } from "@/lib/dashboard/kpi";
 import { getContentHealth } from "@/lib/dashboard/content-health";
 import {
   MOST_VIEWED_LIMIT,
@@ -26,10 +26,10 @@ import {
   toZeroResultSearches,
 } from "@/lib/dashboard/telemetry-rpc";
 
-// Every dashboard number comes from a 0016 function called with the manager's
+// Every monitoring number comes from a 0016 function called with the admin's
 // own session (RLS-scoped, SECURITY INVOKER) — no raw telemetry row leaves the
 // database, so no PostgREST max-rows cap can cut an aggregate short. The calls
-// of one tab run in parallel.
+// of one page run in parallel.
 
 /** One widget's data, or the fact that it could not be loaded. A failure
  * carries nothing on purpose: the database error is logged here and never
@@ -75,7 +75,59 @@ function rpcFilter(range: DashboardRange): RpcFilter {
   return filter;
 }
 
-/** The KPI cards every tab shows. The draft count is not telemetry: it comes
+/** A read that reports failure by throwing (a cached loader, a query helper)
+ * as a widget: the error is logged under `label` and becomes { ok: false }, so
+ * one failing source costs its widget, never the page. */
+export async function settleWidget<T>(label: string, read: () => Promise<T>): Promise<WidgetData<T>> {
+  try {
+    return { ok: true, data: await read() };
+  } catch (error) {
+    console.error(`[dashboard] ${label} failed:`, error instanceof Error ? error.message : String(error));
+    return { ok: false };
+  }
+}
+
+// One call per list (the monitoring pages, S03): each list is its own widget
+// and fails on its own, where fetchActivityTelemetry / fetchQualityTelemetry
+// read several lists for the retired tabs in one go.
+
+/** dashboard_kpis' telemetry totals for the range and the equal-length range
+ * before it — exact counts, not sums of a capped list. */
+export async function fetchKpiTotals(range: DashboardRange): Promise<WidgetData<DashboardKpiTotals>> {
+  const { startUTC: previousStartUTC } = dashboardRangeWindow(previousEqualRange(range));
+  const result = await createClient().rpc("dashboard_kpis", { ...rpcFilter(range), p_prev_from: previousStartUTC });
+  return toWidget("dashboard_kpis", result, (rows) => {
+    const [row] = rows;
+    if (!row) throw new Error("no row");
+    return toKpiTotals(row);
+  });
+}
+
+/** Searches that found nothing, most frequent first; the person filter applies. */
+export async function fetchZeroResultSearches(
+  range: DashboardRange,
+  limit: number = ZERO_RESULT_LIMIT
+): Promise<WidgetData<ZeroResultQueryGroup[]>> {
+  const result = await createClient().rpc("dashboard_zero_result_searches", { ...rpcFilter(range), p_limit: limit });
+  return toWidget("dashboard_zero_result_searches", result, toZeroResultSearches);
+}
+
+/** Pages marked "not helpful", most marks first; the person filter applies. */
+export async function fetchNotHelpful(
+  range: DashboardRange,
+  limit: number = NOT_HELPFUL_LIMIT
+): Promise<WidgetData<NotHelpfulGroup[]>> {
+  const result = await createClient().rpc("dashboard_not_helpful", { ...rpcFilter(range), p_limit: limit });
+  return toWidget("dashboard_not_helpful", result, toNotHelpful);
+}
+
+/** p50 / p75 per Web Vitals metric over the range (the technical page). */
+export async function fetchWebVitals(range: DashboardRange): Promise<WidgetData<WebVitalSummary[]>> {
+  const result = await createClient().rpc("dashboard_web_vitals", rpcFilter(range));
+  return toWidget("dashboard_web_vitals", result, toWebVitals);
+}
+
+/** The retired tabs' KPI cards. The draft count is not telemetry: it comes
  * from the content-health cache, and a failure there still throws to the
  * route's error boundary, as before. */
 export async function fetchDashboardKpis(range: DashboardRange): Promise<WidgetData<DashboardKpis>> {
@@ -101,7 +153,8 @@ export interface ActivityTelemetry {
   webVitals: WidgetData<WebVitalSummary[]>;
 }
 
-/** Faollik: each section can fail on its own and says so on its own. */
+/** The retired Faollik tab's four lists — each can fail on its own. The
+ * monitoring pages call fetchZeroResultSearches / fetchWebVitals directly. */
 export async function fetchActivityTelemetry(range: DashboardRange): Promise<ActivityTelemetry> {
   const supabase = createClient();
   const filter = rpcFilter(range);
@@ -133,8 +186,9 @@ export interface QualityTelemetry {
   mostViewed: MostViewedItem[];
 }
 
-/** Sifat: QualityPanel renders the three lists as one widget, so one failing
- * call puts the whole panel in its error state. */
+/** The retired Sifat tab's three lists as one widget: one failing call fails
+ * all three. The monitoring pages call fetchNotHelpful /
+ * fetchZeroResultSearches one by one instead, so each list fails alone. */
 export async function fetchQualityTelemetry(range: DashboardRange): Promise<WidgetData<QualityTelemetry>> {
   const supabase = createClient();
   const filter = rpcFilter(range);

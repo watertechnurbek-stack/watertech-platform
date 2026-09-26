@@ -5,9 +5,10 @@ import { displayName, percentChange, type PersonOverview, type PersonTotals } fr
 // use it too); re-exported so the overview's callers keep one import.
 export { displayName };
 
-// The admin overview's arithmetic (/admin, R3/S03): who the page is about, the
-// headline totals of a window and their change against the window before.
-// Pure, so tests/unit/admin/overview.test.ts pins it; the page only formats.
+// The admin overview's arithmetic (/admin, R3/S03, rebuilt in the S03
+// monitoring IA): who the page is about, the headline totals of a window and
+// their change against the window before. Pure, so
+// tests/unit/admin/overview.test.ts pins it; the page only formats.
 
 /** The people the overview reports on: operators and sales managers. The
  * admin is never one of them — telemetry does not record that role (CLAUDE.md
@@ -34,25 +35,16 @@ export interface OverviewTotals {
   activeMs: number;
   contentViews: number;
   copies: number;
-  /** Mean onboardingPercent over everyone in the report, rounded; null with
-   * nobody to average or no checklist. */
-  onboardingAverage: number | null;
 }
 
-export function overviewTotals(people: readonly PersonOverview[], checklistTotal: number): OverviewTotals {
+export function overviewTotals(people: readonly PersonOverview[]): OverviewTotals {
   const reported = overviewPeople(people);
-  const percents = reported
-    .map((person) => onboardingPercent(person, checklistTotal))
-    .filter((percent): percent is number => percent !== null);
-
   return {
     people: reported.length,
     activePeople: reported.filter((person) => person.activeDays > 0).length,
     activeMs: sum(reported, (person) => person.activeMs),
     contentViews: sum(reported, (person) => person.contentViews),
     copies: sum(reported, (person) => person.copies),
-    onboardingAverage:
-      percents.length === 0 ? null : Math.round(percents.reduce((total, percent) => total + percent, 0) / percents.length),
   };
 }
 
@@ -62,27 +54,17 @@ export interface OverviewDeltas {
   /** Percent change. */
   activeMs: number | null;
   contentViews: number | null;
-  copies: number | null;
-  /** Percentage points. */
-  onboardingAverage: number | null;
 }
 
 /** Change from `previous` (the equal-length window before) to `current`.
  * With no previous window — its read failed — every delta is null, never a
  * change against an imagined zero. */
 export function overviewDeltas(current: OverviewTotals, previous: OverviewTotals | null): OverviewDeltas {
-  if (!previous) {
-    return { activePeople: null, activeMs: null, contentViews: null, copies: null, onboardingAverage: null };
-  }
+  if (!previous) return { activePeople: null, activeMs: null, contentViews: null };
   return {
     activePeople: current.activePeople - previous.activePeople,
     activeMs: percentChange(current.activeMs, previous.activeMs),
     contentViews: percentChange(current.contentViews, previous.contentViews),
-    copies: percentChange(current.copies, previous.copies),
-    onboardingAverage:
-      current.onboardingAverage === null || previous.onboardingAverage === null
-        ? null
-        : current.onboardingAverage - previous.onboardingAverage,
   };
 }
 
@@ -91,18 +73,10 @@ export function averagePer(total: number, count: number): number | null {
   return count > 0 ? Math.round(total / count) : null;
 }
 
-/** Whether anyone in the report did anything in the window — the charts show
- * an empty state instead of a wall of zero bars when not. */
+/** Whether anyone in the report did anything in the window — the team table
+ * says so above its rows instead of leaving a wall of zeros to explain itself. */
 export function hasActivity(people: readonly PersonOverview[]): boolean {
   return people.some((person) => person.activeDays > 0);
-}
-
-/** Largest `score` first; ties by name, so the order is stable between renders. */
-export function rankPeople(
-  people: readonly PersonOverview[],
-  score: (person: PersonOverview) => number
-): PersonOverview[] {
-  return [...people].sort((a, b) => score(b) - score(a) || displayName(a).localeCompare(displayName(b)));
 }
 
 /** Whole minutes, the unit of the daily series. */

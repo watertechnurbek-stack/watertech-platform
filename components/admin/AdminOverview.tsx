@@ -1,52 +1,44 @@
 import { getTranslations } from "next-intl/server";
-import {
-  BarChart3,
-  CalendarDays,
-  Clock,
-  Copy,
-  Eye,
-  GraduationCap,
-  LayoutGrid,
-  Table2,
-  Timer,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Clock, Eye, LayoutGrid, SearchX, Trophy, Users, UsersRound } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { EmptyState } from "@/components/EmptyState";
 import { RangePicker } from "@/components/dashboard/RangePicker";
 import { DashboardWidgetError } from "@/components/dashboard/DashboardWidgetError";
+import { AttentionList } from "@/components/admin/AttentionList";
 import { OverviewRefresh } from "@/components/admin/OverviewRefresh";
 import { RelativeTime } from "@/components/admin/RelativeTime";
-import { BarList } from "@/components/admin/charts/BarList";
+import { TopContentTable } from "@/components/admin/TopContentTable";
 import { ChartCard } from "@/components/admin/charts/ChartCard";
-import { ColumnBars } from "@/components/admin/charts/ColumnBars";
 import { CompareTable, type CompareColumn, type CompareRow } from "@/components/admin/charts/CompareTable";
+import { InlineBar } from "@/components/admin/charts/InlineBar";
+import { Sparkline } from "@/components/admin/charts/Sparkline";
 import { StatCard } from "@/components/admin/charts/StatCard";
-import type { AdminNavItem } from "@/lib/admin/nav";
-import type { StatusCounts } from "@/lib/admin/queries";
+import { PersonAvatar } from "@/components/admin/people/PersonAvatar";
+import { RoleBadge } from "@/components/admin/people/RoleBadge";
+import type { AttentionItem, AttentionSource } from "@/lib/admin/attention";
+import { seriesMax } from "@/lib/admin/charts";
+import { knowledgeHref, type GapKpi } from "@/lib/admin/knowledge";
+import type { ContentSectionStatus } from "@/lib/admin/monitoring-queries";
 import { personPath, type PersonOverview, type TopContentItem } from "@/lib/admin/people";
 import {
   averagePer,
   displayName,
   hasActivity,
-  onboardingPercent,
   overviewDeltas,
   overviewPeople,
   overviewTotals,
-  rankPeople,
   toMinutes,
 } from "@/lib/admin/overview";
 import { formatDuration } from "@/lib/dashboard/format";
-import type { DashboardRange } from "@/lib/dashboard/range";
+import {
+  DEFAULT_RANGE_DAYS,
+  MONITORING_RANGE_DAYS,
+  rangeDayCount,
+  rangeSearchParams,
+  withSearch,
+  type DashboardRange,
+} from "@/lib/dashboard/range";
 import type { WidgetData } from "@/lib/dashboard/telemetry-window";
-import { TOTAL_ONBOARDING_ITEMS } from "@/lib/telemetry/aggregate";
-
-/** One CMS section of the content-status grid: its nav entry and its counts. */
-export interface ContentSectionStatus {
-  item: AdminNavItem;
-  counts: StatusCounts;
-}
 
 export interface AdminOverviewProps {
   locale: string;
@@ -56,65 +48,88 @@ export interface AdminOverviewProps {
   current: WidgetData<PersonOverview[]>;
   /** The equal-length window before `range`, for the StatCards' deltas. */
   previous: WidgetData<PersonOverview[]>;
+  /** The knowledge-gaps StatCard; null when any of its sources failed. */
+  gaps: GapKpi | null;
+  attention: { items: readonly AttentionItem[]; skipped: readonly AttentionSource[] };
   topContent: WidgetData<TopContentItem[]>;
   contentStatus: WidgetData<ContentSectionStatus[]>;
+}
+
+type Translator = Awaited<ReturnType<typeof getTranslations>>;
+
+interface Formatters {
+  num: (value: number) => string;
+  duration: (ms: number) => string;
 }
 
 function intlLocale(locale: string): string {
   return locale === "ru" ? "ru-RU" : "uz-UZ";
 }
 
-/** The admin overview's body (/admin, R3/S03), apart from its reads so the
- * page stays a thin fetch-and-render: how operators and sales managers used
- * the knowledge base over a range, next to the content's own state. Every
- * widget fails and empties on its own (CLAUDE.md §15): a failed read renders
- * DashboardWidgetError in that widget's slot, no people or no events an
- * EmptyState — never a silent zero. */
+/** A card's one "see everything" link (ChartCard's action slot). */
+function AllLink({ href, children }: { href: string; children: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1 rounded-lg px-1 text-[12.5px] font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      {children}
+      <ArrowRight size={13} aria-hidden="true" />
+    </Link>
+  );
+}
+
+/**
+ * "Bosh panel" (/admin, S03 monitoring IA) — one question: how is my team doing
+ * and what needs me now? Top to bottom: the header with the range and the
+ * refresh stamp; four headline numbers against the window before; the
+ * attention list; one team table (who worked how much, used what, when last,
+ * and the shape of their days); then the most used materials next to the
+ * content's own state. The reads are the page's (one Promise.all); this only
+ * lays them out. Every widget fails and empties on its own (CLAUDE.md §15): a
+ * failed read renders DashboardWidgetError in that widget's slot, no people or
+ * no events an EmptyState — never a silent zero.
+ */
 export async function AdminOverview({
   locale,
   range,
   renderedAt,
   current,
   previous,
+  gaps,
+  attention,
   topContent,
   contentStatus,
 }: AdminOverviewProps) {
-  const [t, tNav, tRoles, tDuration, tEmpty] = await Promise.all([
+  const [t, tNav, tRoles, tDuration] = await Promise.all([
     getTranslations("pages.admin.overview"),
     getTranslations("admin.nav"),
     getTranslations("pages.admin.users.roles"),
     getTranslations("dashboard.duration"),
-    getTranslations("pages.admin.overview.empty"),
   ]);
 
   const numbers = new Intl.NumberFormat(intlLocale(locale));
-  const dayFormat = new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "long", timeZone: "UTC" });
-  const num = (value: number): string => numbers.format(value);
-  const duration = (ms: number): string => formatDuration(ms, tDuration);
-  const percent = (value: number | null): string => (value === null ? "—" : t("percent", { value }));
+  const format: Formatters = {
+    num: (value) => numbers.format(value),
+    duration: (ms) => formatDuration(ms, tDuration),
+  };
+
+  // Links elsewhere open on this page's window: the knowledge page shares the
+  // monitoring default, a person's page has a shorter one of its own.
+  const knowledgeSearch = rangeSearchParams(range, MONITORING_RANGE_DAYS).toString();
+  const personParams = rangeSearchParams(range, DEFAULT_RANGE_DAYS);
 
   const people = current.ok ? overviewPeople(current.data) : [];
-  const active = current.ok && hasActivity(people);
+  const active = hasActivity(people);
 
-  const noPeople = (
-    <EmptyState
-      variant="compact"
-      stateKey="dashboardNoOperators"
-      title={tEmpty("noPeople.title")}
-      reason={tEmpty("noPeople.reason")}
-      action={{ label: tEmpty("noPeople.cta"), href: "/admin/users" }}
-    />
-  );
   const noEvents = (
     <EmptyState
       variant="compact"
       stateKey="dashboardNoEvents"
-      title={tEmpty("noEvents.title")}
-      reason={tEmpty("noEvents.reason")}
+      title={t("empty.noEvents.title")}
+      reason={t("empty.noEvents.reason")}
     />
   );
-  /** The shared empty/error decision of the people widgets. */
-  const peopleState = !current.ok ? <DashboardWidgetError /> : people.length === 0 ? noPeople : !active ? noEvents : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -129,366 +144,285 @@ export async function AdminOverview({
         <RangePicker range={range} basePath="/admin" />
       </div>
 
-      {current.ok ? (
-        <KpiRow
-          people={current.data}
-          previous={previous.ok ? previous.data : null}
-          t={t}
-          num={num}
-          duration={duration}
-          percent={percent}
-        />
-      ) : (
-        <DashboardWidgetError />
-      )}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {current.ok ? (
+          <PeopleStats
+            people={current.data}
+            previous={previous.ok ? previous.data : null}
+            knowledgeSearch={knowledgeSearch}
+            t={t}
+            format={format}
+          />
+        ) : (
+          <div className="sm:col-span-2 xl:col-span-3">
+            <DashboardWidgetError />
+          </div>
+        )}
+        {gaps ? (
+          <StatCard
+            icon={SearchX}
+            label={t("kpi.gaps")}
+            value={format.num(gaps.total)}
+            caption={t("kpi.gapsCaption", {
+              searches: format.num(gaps.searches),
+              feedback: format.num(gaps.feedback),
+              copilot: format.num(gaps.copilot),
+            })}
+            delta={{ value: gaps.delta, unit: "%", better: "down" }}
+            href={knowledgeHref(knowledgeSearch, "gaps")}
+          />
+        ) : (
+          <DashboardWidgetError />
+        )}
+      </div>
 
-      <ChartCard icon={Table2} title={t("compare.title")} description={t("compare.description")}>
+      <AttentionList items={attention.items} skipped={attention.skipped} />
+
+      <ChartCard
+        id="team"
+        icon={UsersRound}
+        title={t("team.title")}
+        description={t("team.description")}
+        action={<AllLink href="/admin/users">{t("team.all")}</AllLink>}
+      >
         {!current.ok ? (
           <DashboardWidgetError />
         ) : people.length === 0 ? (
-          noPeople
-        ) : (
-          <CompareTable
-            caption={t("compare.title")}
-            columns={compareColumns(t)}
-            rows={people.map((person) => compareRow(person, { t, tRoles, num, duration, percent }))}
-            defaultSort={{ key: "activeTime", direction: "desc" }}
+          <EmptyState
+            variant="compact"
+            stateKey="dashboardNoOperators"
+            title={t("empty.noPeople.title")}
+            reason={t("empty.noPeople.reason")}
+            action={{ label: t("empty.noPeople.cta"), href: "/admin/users" }}
           />
-        )}
-      </ChartCard>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <ChartCard icon={Timer} title={t("activeTimeChart.title")} description={t("activeTimeChart.description")}>
-          {peopleState ?? (
-            <BarList
-              tone="green"
-              label={t("activeTimeChart.title")}
-              empty={noEvents}
-              rows={rankPeople(people, (person) => person.activeMs).map((person) => ({
-                key: person.email,
-                label: displayName(person),
-                sublabel: t("activeTimeChart.sublabel", { days: person.activeDays }),
-                value: person.activeMs,
-                display: duration(person.activeMs),
-                href: personPath(person.email),
-              }))}
-            />
-          )}
-        </ChartCard>
-        <ChartCard icon={BarChart3} title={t("usageChart.title")} description={t("usageChart.description")}>
-          {peopleState ?? (
-            <BarList
-              tone="blue"
-              label={t("usageChart.title")}
-              empty={noEvents}
-              rows={rankPeople(people, (person) => person.contentViews + person.copies).map((person) => ({
-                key: person.email,
-                label: displayName(person),
-                sublabel: t("usageChart.sublabel", { views: num(person.contentViews), copies: num(person.copies) }),
-                value: person.contentViews + person.copies,
-                display: num(person.contentViews + person.copies),
-                href: personPath(person.email),
-              }))}
-            />
-          )}
-        </ChartCard>
-      </div>
-
-      <ChartCard icon={Trophy} title={t("topContent.title")} description={t("topContent.description")}>
-        {!topContent.ok ? (
-          <DashboardWidgetError />
-        ) : topContent.data.length === 0 ? (
-          noEvents
         ) : (
-          <div
-            role="region"
-            aria-label={t("topContent.title")}
-            tabIndex={0}
-            className="overflow-x-auto rounded-xl border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <table className="w-full min-w-[36rem] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-border bg-surface-alt text-[12px] text-text-secondary">
-                  <th scope="col" className="w-10 px-3 py-2.5 font-semibold">
-                    {t("topContent.columns.rank")}
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">{t("topContent.columns.material")}</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">{t("topContent.columns.type")}</th>
-                  <th scope="col" className="px-3 py-2.5 text-right font-semibold">{t("topContent.columns.views")}</th>
-                  <th scope="col" className="px-3 py-2.5 text-right font-semibold">{t("topContent.columns.copies")}</th>
-                  <th scope="col" className="px-3 py-2.5 text-right font-semibold">{t("topContent.columns.people")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topContent.data.map((item, index) => (
-                  <tr
-                    key={`${item.viewType}:${item.entityId ?? item.path}`}
-                    className="border-b border-border bg-surface last:border-0"
-                  >
-                    <td className="px-3 py-2.5 tabular-nums text-text-secondary">{num(index + 1)}</td>
-                    <td className="max-w-[22rem] px-3 py-2.5">
-                      {item.adminHref ? (
-                        <Link
-                          href={item.adminHref}
-                          className="block truncate rounded-lg font-medium text-primary-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        >
-                          {item.label}
-                        </Link>
-                      ) : (
-                        <span className="block truncate font-medium text-primary-dark">{item.label}</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-text-secondary">
-                      {t(`topContent.viewTypes.${item.viewType}`)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-primary-dark">{num(item.views)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-primary-dark">{num(item.copies)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-primary-dark">{num(item.people)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {!active && noEvents}
+            <CompareTable
+              caption={t("team.title")}
+              columns={teamColumns(t, rangeDayCount(range))}
+              rows={teamRows(people, { t, tRoles, format, personParams, days: rangeDayCount(range) })}
+              defaultSort={{ key: "activeTime", direction: "desc" }}
+            />
           </div>
         )}
       </ChartCard>
 
-      <ChartCard icon={CalendarDays} title={t("daily.title")} description={t("daily.description")}>
-        {peopleState ?? (
-          <div
-            role="region"
-            aria-label={t("daily.title")}
-            tabIndex={0}
-            className="overflow-x-auto rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <ul className="min-w-max divide-y divide-border">
-              {rankPeople(people, (person) => person.activeMs).map((person) => (
-                <li
-                  key={person.email}
-                  className="grid grid-cols-[8.5rem_minmax(0,1fr)] items-end gap-3 py-3 sm:grid-cols-[13rem_minmax(0,1fr)]"
-                >
-                  <div className="sticky left-0 z-10 min-w-0 self-center bg-surface pr-2">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard
+          icon={Trophy}
+          title={t("topContent.title")}
+          description={t("topContent.descriptionShort")}
+          action={<AllLink href={knowledgeHref(knowledgeSearch, "usage")}>{t("topContent.all")}</AllLink>}
+        >
+          {!topContent.ok ? (
+            <DashboardWidgetError />
+          ) : topContent.data.length === 0 ? (
+            noEvents
+          ) : (
+            <TopContentTable items={topContent.data} variant="compact" />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          icon={LayoutGrid}
+          title={t("contentStatus.title")}
+          description={t("contentStatus.description")}
+          action={<AllLink href={knowledgeHref("", "health")}>{t("contentStatus.all")}</AllLink>}
+        >
+          {!contentStatus.ok ? (
+            <DashboardWidgetError />
+          ) : (
+            <ul className="divide-y divide-border">
+              {contentStatus.data.map(({ item, counts }) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
                     <Link
-                      href={personPath(person.email)}
-                      className="block truncate rounded-lg text-[13px] font-medium text-primary-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      href={item.href}
+                      className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      {displayName(person)}
-                    </Link>
-                    {displayName(person) !== person.email && (
-                      <p className="truncate text-[12px] text-text-secondary">{person.email}</p>
-                    )}
-                    <p className="mt-0.5 text-[12px] tabular-nums text-text-secondary">{duration(person.activeMs)}</p>
-                  </div>
-                  <ColumnBars
-                    size="sm"
-                    tone="green"
-                    scroll={false}
-                    label={t("daily.seriesLabel", { name: displayName(person) })}
-                    points={person.daily.map((day) => {
-                      const minutes = toMinutes(day.activeMs);
-                      return {
-                        key: day.day,
-                        label: String(Number(day.day.slice(8))),
-                        value: minutes,
-                        display: num(minutes),
-                        title: t("daily.pointTitle", {
-                          date: dayFormat.format(new Date(`${day.day}T00:00:00.000Z`)),
-                          minutes: num(minutes),
-                        }),
-                      };
-                    })}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </ChartCard>
-
-      <ChartCard icon={LayoutGrid} title={t("contentStatus.title")} description={t("contentStatus.description")}>
-        {!contentStatus.ok ? (
-          <DashboardWidgetError />
-        ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {contentStatus.data.map(({ item, counts }) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="flex h-full flex-col gap-1.5 rounded-xl border border-border bg-surface px-3 py-2.5 transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-text-secondary">
-                      <Icon size={14} aria-hidden="true" className="shrink-0" />
-                      <span className="truncate">{tNav(`items.${item.label}`)}</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="sr-only">{t("entries", { count: counts.total })}</span>
-                      <span aria-hidden="true" className="text-[18px] font-bold leading-none tabular-nums text-primary-dark">
-                        {num(counts.total)}
+                      <Icon size={15} aria-hidden="true" className="shrink-0 text-text-secondary" />
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-primary-dark">
+                        {tNav(`items.${item.label}`)}
+                      </span>
+                      <span className="shrink-0 text-[12.5px] tabular-nums text-text-secondary">
+                        {t("contentStatus.published", { count: counts.total - counts.draft })}
                       </span>
                       {counts.draft > 0 && (
-                        <span className="rounded-full bg-status-warning/15 px-2 py-0.5 text-[11px] font-semibold text-status-warning">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-warning/15 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary-dark">
+                          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-status-warning" />
                           {t("drafts", { count: counts.draft })}
                         </span>
                       )}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </ChartCard>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </ChartCard>
+      </div>
     </div>
   );
 }
 
-type Translator = Awaited<ReturnType<typeof getTranslations>>;
-
-/** The five headline numbers, each against the equal-length window before. */
-function KpiRow({
+/** The three people numbers, each against the equal-length window before. */
+function PeopleStats({
   people,
   previous,
+  knowledgeSearch,
   t,
-  num,
-  duration,
-  percent,
+  format,
 }: {
   people: readonly PersonOverview[];
   previous: readonly PersonOverview[] | null;
+  knowledgeSearch: string;
   t: Translator;
-  num: (value: number) => string;
-  duration: (ms: number) => string;
-  percent: (value: number | null) => string;
+  format: Formatters;
 }) {
-  const totals = overviewTotals(people, TOTAL_ONBOARDING_ITEMS);
-  const deltas = overviewDeltas(totals, previous ? overviewTotals(previous, TOTAL_ONBOARDING_ITEMS) : null);
-  const perActive = (average: number | null, format: (value: number) => string): string =>
-    average === null ? t("kpi.noActive") : t("kpi.perActive", { value: format(average) });
+  const totals = overviewTotals(people);
+  const deltas = overviewDeltas(totals, previous ? overviewTotals(previous) : null);
+  const average = averagePer(totals.activeMs, totals.activePeople);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <>
       <StatCard
         icon={Users}
         label={t("kpi.activePeople")}
-        value={num(totals.activePeople)}
-        caption={t("kpi.activePeopleCaption", { active: num(totals.activePeople), total: num(totals.people) })}
+        value={format.num(totals.activePeople)}
+        caption={t("kpi.activePeopleCaption", {
+          active: format.num(totals.activePeople),
+          total: format.num(totals.people),
+        })}
         delta={{ value: deltas.activePeople, unit: "abs" }}
         href="/admin/users"
       />
       <StatCard
         icon={Clock}
         label={t("kpi.activeTime")}
-        value={duration(totals.activeMs)}
-        caption={perActive(averagePer(totals.activeMs, totals.activePeople), duration)}
+        value={format.duration(totals.activeMs)}
+        caption={average === null ? t("kpi.noActive") : t("kpi.perActive", { value: format.duration(average) })}
         delta={{ value: deltas.activeMs, unit: "%" }}
-        href="/dashboard"
       />
       <StatCard
         icon={Eye}
         label={t("kpi.views")}
-        value={num(totals.contentViews)}
-        caption={perActive(averagePer(totals.contentViews, totals.activePeople), num)}
+        value={format.num(totals.contentViews)}
+        caption={t("kpi.viewsCaption", { copies: format.num(totals.copies) })}
         delta={{ value: deltas.contentViews, unit: "%" }}
-        href="/dashboard/quality"
+        href={knowledgeHref(knowledgeSearch, "usage")}
       />
-      <StatCard
-        icon={Copy}
-        label={t("kpi.copies")}
-        value={num(totals.copies)}
-        caption={perActive(averagePer(totals.copies, totals.activePeople), num)}
-        delta={{ value: deltas.copies, unit: "%" }}
-      />
-      <StatCard
-        icon={GraduationCap}
-        label={t("kpi.onboarding")}
-        value={percent(totals.onboardingAverage)}
-        caption={t("kpi.onboardingCaption")}
-        delta={{ value: deltas.onboardingAverage, unit: "pp" }}
-        href="/dashboard/quality"
-      />
-    </div>
+    </>
   );
 }
 
-function compareColumns(t: Translator): CompareColumn[] {
+function teamColumns(t: Translator, days: number): CompareColumn[] {
   return [
-    { key: "person", header: t("compare.columns.person"), sortable: true, firstDirection: "asc" },
-    { key: "activeTime", header: t("compare.columns.activeTime"), align: "right", sortable: true },
-    { key: "activeDays", header: t("compare.columns.activeDays"), align: "right", sortable: true },
-    { key: "views", header: t("compare.columns.views"), align: "right", sortable: true },
-    { key: "copies", header: t("compare.columns.copies"), align: "right", sortable: true },
-    { key: "searches", header: t("compare.columns.searches"), align: "right", sortable: true },
-    { key: "onboarding", header: t("compare.columns.onboarding"), align: "right", sortable: true },
-    { key: "lastSeen", header: t("compare.columns.lastSeen"), align: "right", sortable: true },
+    { key: "person", header: t("team.columns.person"), sortable: true, firstDirection: "asc" },
+    { key: "activeTime", header: t("team.columns.activeTime"), align: "right", sortable: true },
+    {
+      key: "activeDays",
+      header: t("team.columns.activeDays"),
+      hint: t("team.columns.activeDaysHint", { days }),
+      align: "right",
+      sortable: true,
+    },
+    {
+      key: "usage",
+      header: t("team.columns.usage"),
+      hint: t("team.columns.usageHint"),
+      align: "right",
+      sortable: true,
+    },
+    { key: "lastSeen", header: t("team.columns.lastSeen"), align: "right", sortable: true },
+    { key: "trend", header: t("team.columns.trend"), hint: t("team.columns.trendHint"), align: "right" },
   ];
 }
 
-function compareRow(
-  person: PersonOverview,
+function teamRows(
+  people: readonly PersonOverview[],
   {
     t,
     tRoles,
-    num,
-    duration,
-    percent,
-  }: {
-    t: Translator;
-    tRoles: Translator;
-    num: (value: number) => string;
-    duration: (ms: number) => string;
-    percent: (value: number | null) => string;
-  }
-): CompareRow {
-  const name = displayName(person);
-  const onboarding = onboardingPercent(person, TOTAL_ONBOARDING_ITEMS);
+    format,
+    personParams,
+    days,
+  }: { t: Translator; tRoles: Translator; format: Formatters; personParams: URLSearchParams; days: number }
+): CompareRow[] {
+  const maxActive = seriesMax(people.map((person) => person.activeMs));
+  const maxUsage = seriesMax(people.map((person) => person.contentViews + person.copies));
 
-  return {
-    key: person.email,
-    href: personPath(person.email),
-    cells: {
-      person: {
-        sortValue: name,
-        content: (
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="max-w-full truncate font-semibold text-primary-dark">{name}</span>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                  person.role === "manager" ? "bg-primary/10 text-primary" : "bg-surface-alt text-text-secondary"
-                }`}
-              >
-                {tRoles(person.role)}
-              </span>
-              {!person.isActive && (
-                <span className="shrink-0 rounded-full bg-status-outdated/15 px-2 py-0.5 text-[11px] font-semibold text-status-outdated">
-                  {t("compare.inactive")}
+  return people.map((person) => {
+    const name = displayName(person);
+    const minutes = person.daily.map((day) => toMinutes(day.activeMs));
+    const usage = person.contentViews + person.copies;
+
+    return {
+      key: person.email,
+      href: withSearch(personPath(person.email), personParams),
+      cells: {
+        person: {
+          sortValue: name,
+          content: (
+            <span className="flex min-w-0 items-center gap-2.5">
+              <PersonAvatar fullName={person.fullName} email={person.email} size="sm" muted={!person.isActive} />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="max-w-full truncate font-semibold text-primary-dark">{name}</span>
+                  <RoleBadge role={person.role} label={tRoles(person.role)} />
+                  {!person.isActive && (
+                    <span className="shrink-0 rounded-full bg-status-outdated/15 px-2 py-0.5 text-[11px] font-semibold text-primary-dark">
+                      {t("team.inactive")}
+                    </span>
+                  )}
                 </span>
-              )}
+                {name !== person.email && (
+                  <span className="truncate text-[12px] text-text-secondary">{person.email}</span>
+                )}
+              </span>
             </span>
-            {name !== person.email && <span className="truncate text-[12px] text-text-secondary">{person.email}</span>}
-          </span>
-        ),
+          ),
+        },
+        activeTime: {
+          sortValue: person.activeMs,
+          content: (
+            <InlineBar value={person.activeMs} max={maxActive} tone="green">
+              {format.duration(person.activeMs)}
+            </InlineBar>
+          ),
+        },
+        activeDays: { sortValue: person.activeDays, content: format.num(person.activeDays) },
+        usage: {
+          sortValue: usage,
+          content: (
+            <InlineBar value={usage} max={maxUsage} tone="blue">
+              {t("team.usageValue", { views: format.num(person.contentViews), copies: format.num(person.copies) })}
+            </InlineBar>
+          ),
+        },
+        lastSeen: {
+          sortValue: person.lastSeenAt ? Date.parse(person.lastSeenAt) : null,
+          content: (
+            <span className="text-text-secondary">
+              {person.lastSeenAt ? <RelativeTime iso={person.lastSeenAt} /> : t("team.never")}
+            </span>
+          ),
+        },
+        trend: {
+          sortValue: null,
+          content: (
+            <Sparkline
+              values={minutes}
+              label={t("team.trendLabel", {
+                name,
+                days: minutes.length || days,
+                values: minutes.map((value) => format.num(value)).join(", "),
+              })}
+            />
+          ),
+        },
       },
-      activeTime: { sortValue: person.activeMs, content: duration(person.activeMs) },
-      activeDays: { sortValue: person.activeDays, content: num(person.activeDays) },
-      views: { sortValue: person.contentViews, content: num(person.contentViews) },
-      copies: { sortValue: person.copies, content: num(person.copies) },
-      searches: {
-        sortValue: person.searches,
-        content: t("compare.searchesValue", { searches: num(person.searches), zero: num(person.zeroResultSearches) }),
-      },
-      onboarding: { sortValue: onboarding, content: percent(onboarding) },
-      lastSeen: {
-        sortValue: person.lastSeenAt ? Date.parse(person.lastSeenAt) : null,
-        content: person.lastSeenAt ? (
-          <span className="text-text-secondary">
-            <RelativeTime iso={person.lastSeenAt} />
-          </span>
-        ) : (
-          <span className="text-text-secondary">{t("compare.never")}</span>
-        ),
-      },
-    },
-  };
+    };
+  });
 }

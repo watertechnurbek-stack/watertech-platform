@@ -12,8 +12,8 @@ import { ADMIN_NAV_GROUPS, isNavItemActive } from "@/lib/admin/nav";
 
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
-/** The one shell of the admin panel (CLAUDE.md §15): /admin/** (CMS, people)
- * and /dashboard/** (monitoring) both render inside it. Structurally its own
+/** The one shell of the admin panel (CLAUDE.md §15): every page of /admin/**
+ * (monitoring, CMS, system) renders inside it. Structurally its own
  * thing — a sticky header and a grouped left nav from lib/admin/nav.ts —
  * deliberately not built from AppShell/Sidebar (design-locked, CLAUDE.md §6),
  * though the row styling mirrors them: rounded-2xl rows, text-[13.5px]
