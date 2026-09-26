@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelative, formatStableDateTime, type RelativeTimeTranslator } from "@/lib/admin/format";
+import { formatDate, formatRelative, formatStableDateTime, type RelativeTimeTranslator } from "@/lib/admin/format";
 
 const t: RelativeTimeTranslator = (key, values) => (values ? `${key}:${values.count}` : key);
 const NOW = Date.parse("2026-09-24T12:00:00.000Z");
@@ -25,6 +25,16 @@ describe("formatRelative", () => {
   it("falls back to a plain date after 30 days", () => {
     expect(formatRelative(ago(45 * DAY), t, "uz", NOW)).toMatch(/\d/);
     expect(formatRelative(ago(45 * DAY), t, "uz", NOW)).not.toContain("days:");
+  });
+
+  it("falls back to the office's Tashkent calendar date, not the server's local date", () => {
+    // 21:00 UTC is already 02:00 the next day in Tashkent (UTC+5, no DST) — a
+    // server running in UTC (CI, most hosts) would print the wrong day here if
+    // the fallback ever dropped Asia/Tashkent, the timezone every other date
+    // in this file (formatDate, formatDateTime, formatStableDateTime) uses.
+    const iso = "2026-08-10T21:00:00.000Z";
+    expect(formatRelative(iso, t, "uz", NOW)).toBe(formatDate(iso, "uz"));
+    expect(formatRelative(iso, t, "ru", NOW)).toBe(formatDate(iso, "ru"));
   });
 
   it("still reads the system clock when none is given", () => {
