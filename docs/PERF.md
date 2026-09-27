@@ -678,6 +678,17 @@ short strings per locale). Built with CI's placeholder env against `e62b9ec`:
 already load (so they are shared chunks, not new code). Every other row of the route table is identical; "shared by
 all" stays 89.5 kB.
 
+## Per-page sidebar icons, on top of the new nav order (2026-09-27)
+
+`013d9e0` ("every operator page gets its own sidebar icon", `lib/nav-icons.ts`) was cherry-picked from
+`claude/modest-bell-fw4n5x` onto the branch that moved the live script into Savdo jarayoni; that branch's own
+measurement (`c724be5`) is against its attestation baseline, so this is the same change measured here. CI's
+placeholder env, against `e29d2aa`: First Load JS moves by +0 to +1 kB per route (+1 kB on `/faq`,
+`/products/comparisons`, `/products/technical-docs`, `/sales-process/battle-cards/[slug]`,
+`/sales-process/scripts/[slug]`, `/standards/kpi-system`, `/standards/motivation-bonus`; the rest unchanged at the
+table's rounding). The largest operator route is still `/sales-process/scripts` at 170 kB. Page chunks move by up to
+±3 kB as the icons regroup between shared chunks; "shared by all" stays 89.5 kB.
+
 ## Open items
 
 1. ~~Supabase browser client imported statically~~ - done in S14, see above. `/login` still imports it, by design.
