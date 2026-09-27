@@ -10,6 +10,9 @@ export type SortDirection = "asc" | "desc";
 export interface CompareColumn {
   key: string;
   header: string;
+  /** A second, smaller header line — the unit or the window ("daq / kun",
+   * "oxirgi 14 kun"), so a cell can stay a bare number. */
+  hint?: string;
   align?: "left" | "right";
   sortable?: boolean;
   /** Direction a first click on this header sorts in — "desc" suits numbers
@@ -117,6 +120,14 @@ export function CompareTable({ columns, rows, caption, defaultSort }: CompareTab
                     : "descending"
                   : "none";
               const SortIcon = !active ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+              const label = column.hint ? (
+                <span className={`flex flex-col ${column.align === "right" ? "items-end" : "items-start"}`}>
+                  <span>{column.header}</span>
+                  <span className="text-[11px] font-normal">{column.hint}</span>
+                </span>
+              ) : (
+                column.header
+              );
               return (
                 <th
                   key={column.key}
@@ -134,11 +145,11 @@ export function CompareTable({ columns, rows, caption, defaultSort }: CompareTab
                         column.align === "right" ? "flex-row-reverse" : ""
                       } ${active ? "text-primary-dark" : ""}`}
                     >
-                      {column.header}
+                      {label}
                       <SortIcon size={13} aria-hidden="true" className={active ? "" : "opacity-50"} />
                     </button>
                   ) : (
-                    column.header
+                    label
                   )}
                 </th>
               );

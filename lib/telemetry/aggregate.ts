@@ -29,7 +29,22 @@ export interface TelemetryRow {
 const TASHKENT_OFFSET_MS = 5 * 60 * 60 * 1000;
 
 export function todayInTashkent(): string {
-  return new Date(Date.now() + TASHKENT_OFFSET_MS).toISOString().slice(0, 10);
+  return tashkentDateOf(Date.now());
+}
+
+/** The Tashkent calendar date (YYYY-MM-DD) of an instant — epoch ms or an ISO
+ * string. The attestation's pace rule (lib/attestation/schedule.ts) compares
+ * these. */
+export function tashkentDateOf(instant: number | string): string {
+  const ms = typeof instant === "number" ? instant : Date.parse(instant);
+  return new Date(ms + TASHKENT_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** The Tashkent calendar date (YYYY-MM-DD) an instant falls on; null for an
+ * unparsable timestamp. */
+export function tashkentDayOf(iso: string): string | null {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : new Date(ms + TASHKENT_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 export function isValidDateString(s: string | undefined): s is string {

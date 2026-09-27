@@ -17,15 +17,16 @@ not an email in a request body, not a role in a payload.
 
 ### Role model v2 (migration 0020)
 
-| Role | Who | Operator app (`/`, `(app)/**`) | Admin panel (`/admin/**`, `/dashboard/**`) | Telemetry |
+| Role | Who | Operator app (`/`, `(app)/**`) | Admin panel (`/admin/**`; `/dashboard/**` only redirects) | Telemetry |
 | --- | --- | --- | --- | --- |
 | `admin` | the owner | yes — a preview | **yes, everything** | never recorded |
 | `manager` | a sales manager | yes (the operator's UI, for now) | **no** → sent to `/` | recorded |
 | `operator` | an operator | yes | **no** → sent to `/` | recorded |
 
 The admin panel refuses an operator and a sales manager at **every layer on its own**: `middleware.ts`
-(`isAdminArea()` → `homeForRole()`), the page gate (`requireAdminPage()` in both admin layouts — `/admin` and
-`/dashboard`, so the shell never renders for them — and again in every `/dashboard` page and on the people pages),
+(`isAdminArea()` → `homeForRole()`), the page gate (`requireAdminPage()` in the admin layout, so the shell never
+renders for them, and again first in every monitoring page — `/admin`, `/admin/knowledge`, `/admin/system` — and on
+the people pages; the retired `/dashboard` URLs only redirect to those, from `next.config.js`, with no data),
 the Server Action guard (`requireAdminSession()`), and the database (RLS through
 `private.is_admin()`, and a `WT403` from every admin function). **Admin rows are SQL-editor-only**: the
 allow-list guard refuses any write that carries a JWT and creates, promotes, demotes, deactivates,
@@ -43,7 +44,7 @@ inserting.
 | 3 | Google → `https://<ref>.supabase.co/auth/v1/callback` → back to `<origin>/auth/callback?code=…&locale=…` | Supabase Auth | The `code` is single-use and bound to the PKCE verifier in the browser. |
 | 4 | `exchangeCodeForSession(code)` | [app/auth/callback/route.ts](../app/auth/callback/route.ts) | **The gate.** GoTrue mints the access token here, and minting runs the hook in step 5. |
 | 5 | `public.custom_access_token_hook(event)` | [0014_role_gated_rls.sql](../supabase/migrations/0014_role_gated_rls.sql) | Active `allowed_users` row → stamps `app_metadata.role` = `operator` \| `manager` \| `admin`, verbatim from the row. Otherwise returns the Auth Hooks error response and **no token exists**. |
-| 6 | Route gating | [middleware.ts](../middleware.ts) | Reads the role off the locally verified JWT. The admin panel (`/admin`, `/dashboard`) is the admin's alone: an operator or a sales manager is sent to `/`. One-directional — the admin may open the operator routes too (a preview). Network-free (CLAUDE.md §4). It runs on every path except `api/*`, `auth/callback`, the Sentry tunnel, `_next/*`, the three `public/` asset folders and three exact files (CLAUDE.md §7) — until Audit-2 any path ending in `.json`, `.png`, `.map`… skipped it (AUDIT.md F1). |
+| 6 | Route gating | [middleware.ts](../middleware.ts) | Reads the role off the locally verified JWT. The admin panel (`/admin`; `/dashboard` stays listed though it only redirects) is the admin's alone: an operator or a sales manager is sent to `/`. One-directional — the admin may open the operator routes too (a preview). Network-free (CLAUDE.md §4). It runs on every path except `api/*`, `auth/callback`, the Sentry tunnel, `_next/*`, the three `public/` asset folders and three exact files (CLAUDE.md §7) — until Audit-2 any path ending in `.json`, `.png`, `.map`… skipped it (AUDIT.md F1). |
 | 7 | Row gating | RLS, via `private.is_member()` / `private.is_admin()` (`is_manager()` is its deprecated alias since 0020) | Which rows that session sees, per table. |
 
 `/login` and `/offline` are the only public paths. `/offline` is public because the service worker
@@ -90,6 +91,8 @@ policies still call `private.is_manager()` by name, which is `private.is_admin()
 | `access_audit` (0017) | nothing | read — nobody writes it but the trigger, `service_role` included | nothing |
 | `rate_limits` | nothing | nothing | nothing — `service_role` only, through `rate_limit_hit()` |
 | `storage.objects`, bucket `product-images` (0018) | nothing through RLS | read, insert, update, delete — writes only under `products/` | nothing through RLS |
+| `assessment_config`, `assessment_items` (0023) | nothing | read; update (config) / insert, update, delete (items), version-guarded, every write audited by trigger | nothing |
+| `assessment_attempts`, `assessment_messages`, `assessment_unlocks`, `assessment_audit` (0023) | nothing — not even their own attempt (§7) | read; writes only through the five `admin_assessment_*` functions | nothing |
 
 The `dashboard_*` (0016), `copilot_*` (0019) and `admin_user_last_activity()` (0017) functions,
 `reorder_content_rows()` (0015) and the people analytics functions `admin_people_overview`,
@@ -102,7 +105,14 @@ zero-filled answer.
 tables (and `telemetry_events` no DELETE grant), so the function is `SECURITY DEFINER`. It starts with the
 same `WT403` check, then — like the allow-list guard, under the guard's advisory lock — reads the caller's
 own row (`WT403` unless it is an active admin), and refuses the caller's own email (`WT461`) and an admin
-row's (`WT462`). `EXECUTE` is `authenticated`'s alone.
+row's (`WT462`). `EXECUTE` is `authenticated`'s alone. Since 0023 it also deletes the person's attestation
+attempts (their conversations cascade) and unlocks.
+
+The attestation's admin writes on attempts and unlocks — `admin_assessment_override`, `_clear_override`,
+`_reset`, `_reset_person` and `_unlock` (0023) — are `SECURITY DEFINER` for the same reason: no session role
+holds a write privilege on those tables or on `assessment_audit`, so a score cannot be rewritten, nor an audit
+row forged, straight over PostgREST. Each starts with the `WT403` check and re-reads the caller's row under
+the guard's lock, then writes one audit row. The threat model is §7.
 
 **The `product-images` bucket is public on purpose.** Catalog photos are marketing material, so anyone
 holding a photo's URL can fetch it from `/storage/v1/object/public/product-images/…` — Storage serves
@@ -122,7 +132,7 @@ does not cover (TRUNCATE, TRIGGER, REFERENCES) are not reachable through PostgRE
 Revoking them anyway is open item O1 in [AUDIT.md](AUDIT.md#b-findings-of-this-audit). Writes that need to bypass
 RLS (telemetry ingestion, the copilot log, the publish gate, the content loaders — and, since 0017, the
 Supabase Auth ban/unban behind `/admin/users`, and since 0022 deleting a removed person's Auth account —
-neither has a session-scoped equivalent) go through
+neither has a session-scoped equivalent — and, from S05, a candidate's own attestation attempt, §7) go through
 [lib/supabase/admin.ts](../lib/supabase/admin.ts) in server code only, and take the email from the
 verified session, never from the payload.
 
@@ -289,7 +299,8 @@ enables its button only once the email is typed again. `removeUser` then runs, i
    the Google sign-in is unlinked and every session and refresh token goes with it. If GoTrue does not
    confirm, the action answers `auth_sync_failed` and nothing else has been touched.
 3. **With the history option**, `admin_purge_person_history` deletes their `telemetry_events`, `user_state`
-   (pins, onboarding, read receipts, the daily plan) and `copilot_logs` (their Copilot questions) rows.
+   (pins, onboarding, read receipts, the daily plan) and `copilot_logs` (their Copilot questions) rows, and
+   since 0023 their attestation attempts, conversations and unlocks.
 4. **The allow-list row** is deleted through the admin's own session, so the policy and the guard decide
    again; the audit trigger appends an `access_audit` row (`action = 'delete'`, the whole row as `before`,
    the admin as `actor`).
@@ -302,7 +313,7 @@ deletes too.
 
 **What is kept:** `access_audit` always — the record of who removed whom, and when; it is append-only and
 the purge never touches it. Without the history option, their telemetry, `user_state` and Copilot rows stay
-too: they keep counting in the dashboards, retention (0016) ages them out, and if the email is ever added
+too: they keep counting in the dashboards, retention (0016, 0023) ages them out, and if the email is ever added
 again the person finds their old pins and onboarding progress. The email can be added again at any time;
 its next sign-in creates a new Auth account.
 
@@ -328,3 +339,28 @@ account, and the retry after applying 0022 finishes the job.
 - Never re-run `0013` on its own after `0020`: it re-creates two policies with that literal. Re-run `0014`
   after it (MIGRATIONS.md).
 - Middleware must stay network-free: the role comes off the verified JWT, never from a query.
+
+## 7. Attestation threat model
+
+The attestation (0023, [ATTESTATION.md](ATTESTATION.md)) scores operators and sales managers, and **only the
+admin may ever see a result**. The top requirement is that a candidate learns nothing about any score — their
+own included — beyond "locked / available / in progress / submitted" per day. What an attacker would try, and
+what stops it:
+
+| # | Threat | Stopped by | Verified by |
+| --- | --- | --- | --- |
+| T1 | A candidate reads their own score, band, rubric or answer key straight from PostgREST with their session | No policy on any of the six tables names an operator or a sales manager; a `RESTRICTIVE` admin-only policy on each would still refuse one if a permissive policy were ever added by mistake. They get zero rows, not an error that says what exists. | `attestation-checks.sql` (operator, sales-manager and claim-less sweeps; a deliberately wrong permissive policy) |
+| T2 | …through the app | From S05 a candidate route answers only what `lib/attestation/operator-view.ts` builds: the day, its status, `opensOn` or `afterDay` — an allow-list of keys, never a score, band, rubric word, key or explanation, and Part A never says right or wrong. | `operator-view.test.ts` (full rows with scores in, allow-listed keys out) |
+| T3 | …from a client bundle or the page's messages | `rubrics.ts`, `scoring.ts`, `items-draw.ts`, `config.ts`, `operator-view.ts` and `repository.ts` import `server-only`; the admin pages render the rubric on the server. All attestation copy is under `pages.admin.assessments`, which only the admin layout sends to a browser. | `confidentiality.test.ts` (client reachability walk; the operator message payload) |
+| T4 | A candidate reaches another person's attempt | The candidate path (S05) reads with the service role but filters **every** query by the verified session's email — `operatorAttestationRepo(sessionEmail(session))`, a branded type only the session can make; an attempt id from the URL is re-checked against it. No request body carries an identity. | `repository.test.ts` (every request carries `user_email=eq.<session>`) |
+| T5 | The bank's answer keys leak | Items are admin-only and outside the CMS registry: no stale scan, notification, trash, version snapshot (`content_versions`) or publish-gate bundle copies them, and no operator loader, search index, Copilot retriever or `/api/content-refs` reads the table. Each attempt keeps its own `served_items` snapshot, server-side. The bank list sends the admin's browser no key or explanation. | `confidentiality.test.ts` (no registry entry; the only modules that query the tables); `item-bank.test.ts` |
+| T6 | A score is changed, or history rewritten, without a trace | Scores change only through the `SECURITY DEFINER` functions (note required for an override), each writing one `assessment_audit` row; item and settings writes are audited by `SECURITY DEFINER` triggers, whoever writes (UI, SQL editor, seed). The audit is append-only for everyone, the owner included (UPDATE / DELETE / TRUNCATE refused by trigger); the service role has no access to it. | `attestation-checks.sql` |
+| T7 | A demoted or deactivated admin keeps acting until their token expires | The five functions re-read the caller's `allowed_users` row under the guard's lock (`WT403`). Direct item / settings writes decide on the JWT through `private.is_admin()` — the ≤ 1 h window of §4, as for every content table. | `attestation-checks.sql` (stale admin token) |
+| T8 | A bug in S05's service-role code corrupts an attempt | Column grants: the service role may insert only a start's columns and update only progress and evaluation — never `user_email`, `day`, `attempt_no`, the drawn items, the override columns or `version`; no DELETE anywhere; messages are append-only and an operator message is ≤ 600 characters in the database too; one open attempt per person and day is a unique index. | `attestation-checks.sql` (service-role limits) |
+| T9 | Attempts and transcripts outlive their purpose | `retention_days` (30–3650, default 365) enforced daily by `run_assessment_retention()`; a removal with history purges them at once. The audit stays (like `access_audit`): it holds scores only for overrides. | `attestation-checks.sql` (retention, purge counts); `retention.test.ts` |
+| T10 | A candidate games the AI evaluator (prompt injection, pasted answers) | S05: the rubric is confidential (T3); manipulation is flagged (`flags.manipulation`, `needs_review`) and may cap the day; client signals (paste, focus) are recorded for the admin, never shown back. | S05 |
+
+Residual risk, accepted: the admin's browser holds everything the admin reads (by design); the ≤ 1 h token
+window of T7 for item and settings writes; the service-role key, if stolen, reads every attempt — as it reads
+every other table. `supabase/tests/attestation-checks.sql` runs on **staging only** (it writes rolled-back
+fixtures); never against production.

@@ -21,7 +21,15 @@
 // same conventions (a `date` column arrives as "YYYY-MM-DD", jsonb as `Json`).
 // lib/admin/people.ts parses every row with zod before anything reads it.
 // admin_purge_person_history added by hand from 0022 on 2026-09-26 (a jsonb
-// scalar return: {"telemetry", "user_state", "copilot"} counts).
+// scalar return: {"telemetry", "user_state", "copilot"} counts; 0023 adds
+// "assessment_attempts", "assessment_messages", "assessment_unlocks").
+// assessment_config / _items / _attempts / _messages / _unlocks / _audit, the
+// admin_assessment_* functions and run_assessment_retention added by hand from
+// 0023 on 2026-09-26, same conventions (text[] as string[], numeric(5,2) as
+// number, `p_version` of admin_assessment_reset has a SQL default, hence
+// optional). The column grants of 0023 are narrower than these Insert/Update
+// shapes — the generator does not read grants; lib/attestation/repository.ts
+// writes only what they allow.
 //
 // allowed_users and telemetry_events were created by hand before
 // supabase/migrations existed; 0013_baseline_and_audit_integrity.sql is their
@@ -146,6 +154,302 @@ export type Database = {
           role?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      assessment_attempts: {
+        Row: {
+          answers: Json
+          attempt_no: number
+          day: number
+          day_score: number | null
+          eval_model: string | null
+          evaluator_runs: Json
+          factual_errors: Json | null
+          flags: Json
+          id: string
+          item_ids: string[]
+          model: string | null
+          needs_review: boolean
+          overridden_at: string | null
+          overridden_by: string | null
+          override_note: string | null
+          override_score: number | null
+          part_a_finished_at: string | null
+          part_a_score: number | null
+          part_a_started_at: string | null
+          part_b_score: number | null
+          part_b_started_at: string | null
+          persona: Json | null
+          phase: string
+          rubric: Json | null
+          served_items: Json
+          started_at: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          updated_by: string | null
+          user_email: string
+          version: number
+        }
+        Insert: {
+          answers?: Json
+          attempt_no?: number
+          day: number
+          day_score?: number | null
+          eval_model?: string | null
+          evaluator_runs?: Json
+          factual_errors?: Json | null
+          flags?: Json
+          id?: string
+          item_ids?: string[]
+          model?: string | null
+          needs_review?: boolean
+          overridden_at?: string | null
+          overridden_by?: string | null
+          override_note?: string | null
+          override_score?: number | null
+          part_a_finished_at?: string | null
+          part_a_score?: number | null
+          part_a_started_at?: string | null
+          part_b_score?: number | null
+          part_b_started_at?: string | null
+          persona?: Json | null
+          phase?: string
+          rubric?: Json | null
+          served_items?: Json
+          started_at?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_email: string
+          version?: number
+        }
+        Update: {
+          answers?: Json
+          attempt_no?: number
+          day?: number
+          day_score?: number | null
+          eval_model?: string | null
+          evaluator_runs?: Json
+          factual_errors?: Json | null
+          flags?: Json
+          id?: string
+          item_ids?: string[]
+          model?: string | null
+          needs_review?: boolean
+          overridden_at?: string | null
+          overridden_by?: string | null
+          override_note?: string | null
+          override_score?: number | null
+          part_a_finished_at?: string | null
+          part_a_score?: number | null
+          part_a_started_at?: string | null
+          part_b_score?: number | null
+          part_b_started_at?: string | null
+          persona?: Json | null
+          phase?: string
+          rubric?: Json | null
+          served_items?: Json
+          started_at?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_email?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      assessment_audit: {
+        Row: {
+          action: string
+          actor: string
+          attempt_id: string | null
+          created_at: string
+          day: number | null
+          details: Json
+          id: number
+          item_id: string | null
+          target_email: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          attempt_id?: string | null
+          created_at?: string
+          day?: number | null
+          details?: Json
+          id?: never
+          item_id?: string | null
+          target_email?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          attempt_id?: string | null
+          created_at?: string
+          day?: number | null
+          details?: Json
+          id?: never
+          item_id?: string | null
+          target_email?: string | null
+        }
+        Relationships: []
+      }
+      assessment_config: {
+        Row: {
+          day_settings: Json
+          extra_facts: string
+          extra_facts_ru: string
+          id: number
+          retention_days: number
+          thresholds: Json
+          updated_at: string
+          updated_by: string | null
+          version: number
+          weights: Json
+        }
+        Insert: {
+          day_settings: Json
+          extra_facts?: string
+          extra_facts_ru?: string
+          id?: number
+          retention_days?: number
+          thresholds: Json
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          weights: Json
+        }
+        Update: {
+          day_settings?: Json
+          extra_facts?: string
+          extra_facts_ru?: string
+          id?: number
+          retention_days?: number
+          thresholds?: Json
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+          weights?: Json
+        }
+        Relationships: []
+      }
+      assessment_items: {
+        Row: {
+          answer_key: string[]
+          created_at: string
+          day: number
+          difficulty: number
+          explanation: string | null
+          explanation_ru: string | null
+          id: string
+          kind: string
+          options: Json
+          prompt: string
+          prompt_ru: string | null
+          source_ref: string | null
+          status: string
+          topic: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          answer_key?: string[]
+          created_at?: string
+          day: number
+          difficulty?: number
+          explanation?: string | null
+          explanation_ru?: string | null
+          id: string
+          kind?: string
+          options?: Json
+          prompt: string
+          prompt_ru?: string | null
+          source_ref?: string | null
+          status?: string
+          topic: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          answer_key?: string[]
+          created_at?: string
+          day?: number
+          difficulty?: number
+          explanation?: string | null
+          explanation_ru?: string | null
+          id?: string
+          kind?: string
+          options?: Json
+          prompt?: string
+          prompt_ru?: string | null
+          source_ref?: string | null
+          status?: string
+          topic?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
+      assessment_messages: {
+        Row: {
+          attempt_id: string
+          content: string
+          created_at: string
+          latency_ms: number | null
+          role: string
+          seq: number
+        }
+        Insert: {
+          attempt_id: string
+          content: string
+          created_at?: string
+          latency_ms?: number | null
+          role: string
+          seq: number
+        }
+        Update: {
+          attempt_id?: string
+          content?: string
+          created_at?: string
+          latency_ms?: number | null
+          role?: string
+          seq?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_messages_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_unlocks: {
+        Row: {
+          day: number
+          unlocked_at: string
+          unlocked_by: string
+          user_email: string
+        }
+        Insert: {
+          day: number
+          unlocked_at?: string
+          unlocked_by: string
+          user_email: string
+        }
+        Update: {
+          day?: number
+          unlocked_at?: string
+          unlocked_by?: string
+          user_email?: string
         }
         Relationships: []
       }
@@ -906,6 +1210,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_assessment_clear_override: {
+        Args: { p_attempt: string; p_note: string; p_version: number }
+        Returns: number
+      }
+      admin_assessment_override: {
+        Args: { p_attempt: string; p_score: number; p_note: string; p_version: number }
+        Returns: number
+      }
+      admin_assessment_reset: {
+        Args: { p_attempt: string; p_version?: number }
+        Returns: undefined
+      }
+      admin_assessment_reset_person: {
+        Args: { p_email: string }
+        Returns: Json
+      }
+      admin_assessment_unlock: {
+        Args: { p_email: string; p_day: number }
+        Returns: boolean
+      }
       admin_people_overview: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -1102,6 +1426,16 @@ export type Database = {
       reorder_content_rows: {
         Args: { p_table: string; p_ids: string[]; p_versions: number[] }
         Returns: undefined
+      }
+      run_assessment_retention: {
+        Args: { p_skip_if_scheduled?: boolean }
+        Returns: {
+          attempts_deleted: number
+          messages_deleted: number
+          skipped: boolean
+          unlocks_deleted: number
+          window_days: number
+        }[]
       }
       run_retention: {
         Args: { p_skip_if_scheduled?: boolean }

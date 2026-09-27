@@ -14,7 +14,8 @@ const GATED_ROUTES: { path: string; login: RegExp; locale: keyof typeof LOGIN_BU
   { path: "/ru/admin/users", login: /\/ru\/login$/, locale: "ru" },
   { path: "/admin/users/ali%40example.com", login: /\/login$/, locale: "uz" },
   { path: "/ru/admin/users/ali%40example.com", login: /\/ru\/login$/, locale: "ru" },
-  { path: "/dashboard/content", login: /\/login$/, locale: "uz" },
+  { path: "/admin/knowledge", login: /\/login$/, locale: "uz" },
+  { path: "/ru/admin/system", login: /\/ru\/login$/, locale: "ru" },
   { path: "/ru/", login: /\/ru\/login$/, locale: "ru" },
   // Regression for the matcher bug where a bare `products/` exclusion
   // shadowed these routes for the default locale — no next-intl rewrite and
@@ -93,18 +94,38 @@ test.describe("admin session (TEST_SESSION_COOKIE)", () => {
     await context.addCookies(parseCookieHeader(sessionCookie ?? "").map((cookie) => ({ ...cookie, url })));
   });
 
-  test("/dashboard renders the KPI grid", async ({ page }) => {
-    await page.goto("/dashboard");
-    await expectStillOn(page, /\/dashboard$/);
-    for (const title of ["Faol operatorlar", "Jami vaqt", "Nashr kutayotgan qoralamalar", "Natijasiz qidiruvlar"]) {
-      await expect(page.getByText(title, { exact: true })).toBeVisible();
+  // S03 monitoring IA: one question per page. Each widget renders its data or
+  // its own empty/error state, so the headings are there either way.
+  test("/admin renders its headline numbers, the attention list, the team and the content state", async ({ page }) => {
+    await page.goto("/admin");
+    await expectStillOn(page, /\/admin$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Bosh panel", exact: true })).toBeVisible();
+    for (const heading of ["Diqqat talab qiladi", "Jamoa", "Eng ko'p ishlatilgan materiallar", "Kontent holati"]) {
+      await expect(page.getByRole("heading", { level: 2, name: heading, exact: true })).toBeVisible();
+    }
+    // One row per CMS section of the nav's content group.
+    await expect(page.getByText(/^\d+ nashr$/)).toHaveCount(9);
+  });
+
+  test("/admin/knowledge renders its five sections", async ({ page }) => {
+    await page.goto("/admin/knowledge");
+    await expectStillOn(page, /\/admin\/knowledge$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Bilim sifati", exact: true })).toBeVisible();
+    for (const heading of [
+      "Topilmagan savollar",
+      "Foydasiz deb belgilangan",
+      "Copilot",
+      "Kontent salomatligi",
+      "Eng ko'p ishlatilgan materiallar",
+    ]) {
+      await expect(page.getByRole("heading", { level: 2, name: heading, exact: true })).toBeVisible();
     }
   });
 
-  test("/admin renders six section cards", async ({ page }) => {
-    await page.goto("/admin");
-    await expectStillOn(page, /\/admin$/);
-    await expect(page.getByText(/^\d+ ta yozuv$/)).toHaveCount(6);
+  test("/admin/system renders the Web Vitals card", async ({ page }) => {
+    await page.goto("/admin/system");
+    await expectStillOn(page, /\/admin\/system$/);
+    await expect(page.getByRole("heading", { level: 2, name: "Web Vitals", exact: true })).toBeVisible();
   });
 
   // Read-only: nothing here writes the allow-list. The directory (R3/S04) opens
@@ -154,10 +175,13 @@ test.describe("sales manager session (TEST_MANAGER_COOKIE)", () => {
     await expect(page.getByRole("menuitem", { name: "Admin panel" })).toHaveCount(0);
   });
 
-  for (const path of ["/admin", "/admin/users", "/dashboard", "/dashboard/quality"]) {
+  // The retired /dashboard URLs redirect to /admin first (next.config.js); the
+  // admin gate then sends a sales manager home — keeping the section's #hash,
+  // which a browser carries over a redirect that names none.
+  for (const path of ["/admin", "/admin/users", "/admin/knowledge", "/admin/system", "/dashboard", "/dashboard/quality"]) {
     test(`${path} sends a sales manager home`, async ({ page }) => {
       await page.goto(path);
-      await expect(page).toHaveURL(/localhost:\d+\/$/);
+      await expect(page).toHaveURL(/localhost:\d+\/(#[a-z]+)?$/);
     });
   }
 

@@ -12,6 +12,7 @@ manual, and the signed-in half of the e2e suite needs a session cookie captured 
 | Copilot statistics | Supabase SQL editor | `supabase/tests/copilot-checks.sql` | no — staging only (the normalization corpus's TS half runs in `npm test`) |
 | People analytics | Supabase SQL editor | `supabase/tests/people-checks.sql` | no — staging only (its expected rows' TS half runs in `npm test`) |
 | Storage policies + product photos | Supabase SQL editor | `supabase/tests/storage-checks.sql` | no — staging only (the limits' TS half runs in `npm test`) |
+| Attestation (0023) | Supabase SQL editor | `supabase/tests/attestation-checks.sql` | no — staging only (its TS halves — the migration's shape rules and defaults, the candidate view, the confidential modules — run in `npm test`) |
 | Which migrations a project has had | Supabase SQL editor | `supabase/tests/migration-status.sql` | no — read-only, safe on any project (docs/MIGRATIONS.md) |
 | Accessibility (axe-core, in Playwright) | `npm run e2e` | `tests/e2e/a11y.spec.ts` | yes, public routes only |
 | Types + lint | `npm run typecheck && npm run lint` | — | yes |
@@ -43,7 +44,11 @@ npm run typecheck && npm run lint && npm test && npm run build && npm run e2e
   for its page-mode block, which failed under CI's env until the R3 release audit.
 - Structural guards (they read source files, since vitest runs in `node` with no DOM): `admin/nav.test.ts`
   (the nav against the pages on disk), `auth/admin-gates.test.ts` (`requireAdminPage` in both admin layouts,
-  every `/dashboard` page and the people pages), `admin/confirm-dialog.test.ts` (the confirm dialog's focus
+  every monitoring page — `/admin`, `/admin/knowledge`, `/admin/system` — before its reads, the people pages and
+  every attestation page; the `/dashboard` route tree stays gone), `attestation/confidentiality.test.ts` (the
+  attestation's `server-only` modules reachable from no client module; no attestation copy in the operator's
+  message payload; the tables outside the CMS registry, queried only by their own modules),
+  `admin/confirm-dialog.test.ts` (the confirm dialog's focus
   trap and Escape), `ui/design-tokens.test.ts` (chart tokens ≥ 3:1 on `surface`/`surface-alt` in both
   themes, measured from `app/globals.css`; no inset focus ring in the colour of its own fill).
 
@@ -55,7 +60,7 @@ Playwright starts `npm run start`, so **build first**. It reuses a server alread
 CI has no Google sign-in, so what runs there is what an anonymous visitor can reach:
 
 - `smoke.spec.ts`: `/` gate, the sign-in button in both locales, `/api/events` 401.
-- `auth-gate.spec.ts`: `/`, `/admin`, `/admin/users/<email>`, `/dashboard/content`, `/ru/` redirect to the matching login page, and
+- `auth-gate.spec.ts`: `/`, `/admin`, `/admin/users/<email>`, `/admin/knowledge`, `/ru/admin/system`, `/ru/` redirect to the matching login page, and
   so do URLs that merely end in a file extension (`/sales-process/scripts/<slug>.json`, `/x.json` — the
   matcher hole Audit-2 F1 closed); `/sw.js`, the manifest and one file from each `public/` folder are
   still served without a session.
@@ -70,14 +75,14 @@ The rest need a session and skip themselves without one.
 ### Optional: signed-in checks (`TEST_OPERATOR_COOKIE`, `TEST_SESSION_COOKIE`, `TEST_MANAGER_COOKIE`)
 
 One cookie per role (role model v2, CLAUDE.md §7). `middleware.ts` keeps operators and sales managers out
-of `/admin` and `/dashboard`. The admin may open the operator routes too, but only as a preview (no
+of `/admin` (`/dashboard` only redirects there — `monitoring-redirects.spec.ts`). The admin may open the operator routes too, but only as a preview (no
 telemetry, admin-only menu items), so the operator specs still run as an operator.
 
 | Variable | Role | Unlocks |
 | --- | --- | --- |
 | `TEST_OPERATOR_COOKIE` | operator | `story.spec.ts`, `pins.spec.ts`, `changelog.spec.ts`, `locale.spec.ts`, and the operator blocks of `a11y.spec.ts` (axe on the operator routes and all three `/company/*` scenes, the keyboard walk, the onboarding day header's focus) and `mobile.spec.ts`, and the operator block of `people.spec.ts` (kept out of the people pages) |
-| `TEST_SESSION_COOKIE` | admin (the variable's name predates the role) | the `admin session` block of `auth-gate.spec.ts` (`/dashboard`, `/admin`, `/admin/users?view=table`, the operator-app preview and the avatar menu's way back to `/admin`), `people.spec.ts` (the people directory and a person page; needs migration 0021 applied to that project), `admin-bulk-reorder.spec.ts`, and the admin blocks of `a11y.spec.ts` (axe on `/admin`, `/admin/users`, the table view, a person page, `/dashboard`, `/dashboard/quality` in both themes; the admin keyboard walk) |
-| `TEST_MANAGER_COOKIE` | manager (a sales manager) | the `sales manager session` block of `auth-gate.spec.ts`: `/` renders, and `/admin/**` and `/dashboard/**` send them home; `people.spec.ts`: so do the people pages |
+| `TEST_SESSION_COOKIE` | admin (the variable's name predates the role) | the `admin session` block of `auth-gate.spec.ts` (`/admin`, `/admin/knowledge`, `/admin/system`, `/admin/users?view=table`, the operator-app preview and the avatar menu's way back to `/admin`), the signed-in half of `monitoring-redirects.spec.ts` (each retired `/dashboard` URL lands on its new page), `people.spec.ts` (the people directory and a person page; needs migration 0021 applied to that project), `admin-bulk-reorder.spec.ts`, and the admin blocks of `a11y.spec.ts` (axe on `/admin`, `/admin/users`, the table view, a person page, `/admin/knowledge` (and its stale list), `/admin/system` in both themes; the admin keyboard walk, incl. the content-health tabs) |
+| `TEST_MANAGER_COOKIE` | manager (a sales manager) | the `sales manager session` block of `auth-gate.spec.ts`: `/` renders, and `/admin/**` — and the retired `/dashboard` URLs, via their redirect — send them home; `people.spec.ts`: so do the people pages |
 
 1. `npm run build && npm run start`, open `http://localhost:3000`, sign in with an account of that role.
 2. DevTools → Application → Cookies → `http://localhost:3000`. Copy every `sb-<project-ref>-auth-token`
@@ -292,6 +297,42 @@ SQL delete. Run it like `rls-checks.sql`; pass is `storage checks passed`, failu
 The TS side of the same limits is `tests/unit/admin/product-image.test.ts`, which reads the migration
 file and fails if its size limit, MIME list or `image_path` pattern drift from `lib/admin/product-image.ts`.
 
+## Attestation checks (staging only, after 0023)
+
+`supabase/tests/attestation-checks.sql` adds allow-list rows (`att-*@test`: two active admins, an inactive one, two
+operators, a sales manager), three bank items, attempts in every state, a transcript and an unlock, then asserts
+what 0023 promises ([ATTESTATION.md](ATTESTATION.md) §7, §12, §13):
+
+- **The catalogue.** RLS on all six tables; a `RESTRICTIVE` admin-only policy on each; no policy an operator or a
+  sales manager passes; the exact grants — nothing for `anon`, no session write on attempts, messages, unlocks or the
+  audit, the service role narrowed to the columns S05 writes; every `SECURITY DEFINER` function with
+  `search_path = ''` and `EXECUTE` for the right role only.
+- **Candidates see nothing.** An operator, a sales manager and a claim-less token read zero rows of every table —
+  their own attempts included, even after the file adds a permissive policy "by mistake" (the restrictive one must
+  still refuse) — write nothing, and get `WT403` from all five admin functions. A demoted admin's token gets `WT403`.
+- **The admin.** Reads everything; item and settings writes are version-guarded, audited, and refused by every
+  shape and publish rule; override, clear, reset, reset-person and unlock do what they say, refuse what they must
+  (`WT400` / `WT403` / `WT404` / `WT409`), audit once and return no score; one open attempt per person and day.
+- **Append-only and limits.** The audit (for the owner too) and the transcript; an operator message ≤ 600
+  characters; the service role cannot touch the override columns or delete.
+- **The seed's writer.** The service role inserts, publishes and un-publishes a bank item the way `npm run
+  seed:content` (and its `--force`) writes, after `discard plans` — schema `USAGE` is checked when a statement is
+  planned, and the admin's writes earlier in the file leave the validators' plans cached. The catalogue block
+  also refuses an item validator that calls another `private` function (the service role has no `USAGE` there).
+- **Purge and retention.** `admin_purge_person_history` deletes the person's attempts (messages cascade) and
+  unlocks and reports the counts; `run_assessment_retention()` honours `retention_days` (365, then 200).
+
+A preflight fails first, with the fix in the message, if 0023 is missing, if 0022 was re-run after it (the purge
+would no longer delete attestation rows), or if the settings row is gone. Run it like `rls-checks.sql`; pass is
+`Attestation checks passed`, failure an error starting with `ATTESTATION FAIL:`. It ends in `ROLLBACK`; the
+allow-list rows are inserted before any role switch, because an admin row may only be written without a JWT.
+
+The TS halves, in `npm test`: `attestation/schemas.test.ts` reads 0023 and fails if a limit or pattern drifts from
+`lib/attestation/schemas.ts`; `config.test.ts` compares the migration's `$defaults$` document with
+`DEFAULT_ASSESSMENT_CONFIG`; `operator-view.test.ts` feeds full rows, scores included, to the candidate view and
+allows only its keys out; `repository.test.ts` asserts every candidate query carries the session's email;
+`agents/retention.test.ts` covers the cron route's two retention calls.
+
 ## CI (`.github/workflows/ci.yml`)
 
 One job: `npm ci` → typecheck → lint → `npm test` → build → Playwright (Chromium) → e2e. Traces are
@@ -349,7 +390,9 @@ way (`docs/PERF.md`), since none of this reaches the browser.
 
 ## Seeding content (`npm run seed:content`)
 
-The seed writes every `content_*` table from `lib/content/*.ts` with the service-role key, which is why
+The seed writes every `content_*` table from `lib/content/*.ts` — and, since 0023, eight draft attestation items
+per day from `supabase/seed/assessment-items.ts` (`tests/unit/seed/assessment-items.test.ts`: each one passes the
+publish checks and names a real content id; the target needs 0023) — with the service-role key, which is why
 it now refuses to run unless it is told, twice, that it is not pointed at production
 (`supabase/seed/guard.ts`, covered by `tests/unit/seed/guard.test.ts`):
 

@@ -662,6 +662,80 @@ only when `activeBeatIndex` changes — 8 commits for a full scroll down and bac
 only beat 0), so the static page ships one drawing in the card; below lg each chapter's inline drawing is plain
 `<path>`s until it is armed off-screen, then draws once (`useRevealPhase`).
 
+## S03 monitoring IA — one question per admin page (2026-09-26)
+
+The four `/dashboard/*` tabs are gone (307 redirects in `next.config.js`), `/admin` is rebuilt, `/admin/knowledge`
+and `/admin/system` are new. No dependency added, no layout or operator module changed. Both trees built in scratch
+copies with CI's placeholder env (baseline `e62b9ec`); "Exact" is gzip level 9 over the route's
+`app-build-manifest.json` entry.
+
+Admin panel (no budget; the table the next change compares against):
+
+| Route | Before | After | Exact before → after |
+|---|---:|---:|---:|
+| `/admin` (Bosh panel) | 139 kB (page 5.68 kB) | **136 kB** (page 7.1 kB) | 138.779 → 135.547 kB |
+| `/admin/knowledge` (new: took `/dashboard/content`, `/quality`, `/copilot`) | — | 140 kB (page 11.5 kB) | — → 139.920 kB |
+| `/admin/system` (new: Web Vitals from `/dashboard`) | — | 133 kB (page 4.79 kB) | — → 133.231 kB |
+| `/admin/users` (directory) | 166 kB | 167 kB | 166.403 → 167.098 kB |
+| `/admin/users/[email]` (person, dynamic) | 162 kB | 163 kB | 162.056 → 162.740 kB |
+| `/admin/scripts/[id]` (largest editor) | 178 kB | 179 kB | 178.303 → 178.888 kB |
+| other `/admin/<table>/[id]` editors | 169 kB | 170 kB | +0.6 kB each |
+| `/admin/<table>` lists | 146 kB | 146 kB | −0.08 kB each |
+| `/admin/notifications` · `/admin/trash` · `/admin/versions/…` · `/admin/activity` | 130 · 129 · 131 · 109 kB | unchanged | +0.02–0.03 kB |
+| `/dashboard` · `/content` · `/copilot` · `/quality` | 135 · 141 · 135 · 135 kB | removed | — |
+
+`/admin` loses `BarList`, `ColumnBars` and the `BarGrow` machinery (the four charts became one table with static
+`InlineBar`s and server-SVG `Sparkline`s). Every page under the admin layout gains ~0.6 kB: `AdminShell`'s nav now
+imports `BookOpenCheck` (knowledge), and `Activity` (system) is shared with the empty-state icons. The people routes
+also carry the onboarding chip. `/admin/knowledge`'s page chunk is the content-health quick actions
+(`QuickActionButton` → `GateReportDialog`, as `/dashboard/content` had) plus `ContentHealthTabs`.
+
+**Operator routes — +0.03 to +0.45 kB, from removing the routes, not from new code.** `/` 160 → 161 kB (160.460 →
+160.830), `/company/onboarding` 160 → 161 kB (160.107 → 160.555), `/sales-process/scripts` 170 kB (169.874 →
+170.259), `/products` 166 kB (165.927 → 166.308), `/login` 200 → 201 kB. A third build — HEAD with only
+`app/[locale]/dashboard/` deleted — reproduces it (+355 B on `/`, +449 B on onboarding, +240 B on `/login`): once the
+four dashboard routes stop sharing zod's helper modules (`ZodIssueCode`, `util`), webpack moves them out of shared
+chunk `6243` into the empty-state icons chunk, and they compress less well there. What this change itself adds to
+operator routes is ~33 B (two entries in the empty-state registry, `attentionClear` and `knowledgeNoGaps`, both on
+the already-loaded `CheckCircle2` icon). Largest operator route: `/sales-process/scripts` 170.259 kB, under the
+180 kB budget; "shared by all" stays 89.5 kB.
+
+**Round trips.** Each monitoring page is one document request carrying all of its data — the reads run server-side
+in one `Promise.all`; no island fetches. What follows it in the network panel is Next's viewport link prefetching
+(nav, range pills, row links), which for these dynamic routes renders only up to their `loading.tsx`; the knowledge
+page's per-question FAQ links are `prefetch={false}`.
+
+## Page icons in the operator sidebar (2026-09-27)
+
+Every `siteTree` page has its own lucide icon (`lib/nav-icons.ts`, 39 icons, one per page, checked by
+`tests/unit/nav-icons.test.ts`) instead of one per content type (`lib/content-type-icon.tsx`, deleted): the sidebar,
+the collapsed rail and its flyouts (whose child rows gained an icon), the phone drawer and the section landing cards.
+Admin: the attestation tabs got `ChartColumn` / `Library` / `Settings` (hidden below `sm`, where the three labels
+alone fill a 375 px phone), and "Raqobatchilar" `Users` → `Swords`. No dependency and no message namespace added.
+Both trees built in scratch copies with CI's placeholder env (baseline `3489ce4`); "Exact" is gzip level 9 over the
+route's `app-build-manifest.json` entry.
+
+| Route | Before | After | Exact before → after |
+|---|---:|---:|---:|
+| `/sales-process/scripts` (largest operator route) | 170 kB | 170 kB | 169.866 → 170.374 kB |
+| `/products` | 166 kB | 167 kB | 165.918 → 166.562 kB |
+| `/company/mission-values` | 161 kB | 162 kB | 161.136 → 161.779 kB |
+| `/` | 160 kB | 161 kB | 160.429 → 160.829 kB |
+| `/company/onboarding` | 160 kB | 161 kB | 160.145 → 160.800 kB |
+| `/sales-process/scripts/[slug]` (largest change) | 144 kB | 145 kB | 143.574 → 144.775 kB |
+| section landings (`/company`, `/tools`, `/tools/amocrm`, …) | 134 kB | 134 kB | 133.520 → 134.172 kB |
+| `/admin` · `/admin/scripts/[id]` · `/admin/assessments/items/[id]` | 135 · 179 · 170 kB | 136 · 179 · 170 kB | +0.40 · +0.41 · +0.37 kB |
+
+The table grows by 0.24–1.2 kB per operator route and 0.36–0.44 kB per page under the admin layout; the largest
+operator route stays `/sales-process/scripts` at 170.374 kB, under the 180 kB budget; "shared by all" stays 89.5 kB.
+The table does not count the `(app)` layout's own chunks, where the sidebar lives, so the measured payload says more
+here: 33 prerendered `uz` operator pages (the placeholder env prerenders no `[slug]` page) load **187.8 / 193.5 /
+218.4 → 188.1 / 190.6 / 218.2 kB** of scripts (gzip, min / median / max), −4.9 to +0.3 kB per page. `/` now ships 80
+lucide icons instead of 52 (31 added; `FlaskConical`, `ListChecks`, `Video` went with the content-type map), and
+webpack regrouped the shared chunks around the new module: the empty-state registry, which it used to copy into the
+`(app)/not-found` chunk (1.77 → 0.15 kB), now sits once in a shared chunk. That pays for the icons on most pages. HTML
+grows 0.9 / 1.5 / 2.4 kB uncompressed (the icons' SVG paths in the server-rendered sidebar and cards).
+
 ## `/sales-process/objections` → ObjectionsPlaybook (2026-09-27)
 
 The page no longer renders the five-column `DatabaseTemplate` table; it passes `buildObjectionEntries()` (server,
@@ -688,6 +762,14 @@ placeholder env, against `e29d2aa`: First Load JS moves by +0 to +1 kB per route
 `/sales-process/scripts/[slug]`, `/standards/kpi-system`, `/standards/motivation-bonus`; the rest unchanged at the
 table's rounding). The largest operator route is still `/sales-process/scripts` at 170 kB. Page chunks move by up to
 ±3 kB as the icons regroup between shared chunks; "shared by all" stays 89.5 kB.
+
+## Merge of `claude/modest-bell-fw4n5x` (S03 monitoring IA, R4/S04 attestation, page icons) (2026-09-27)
+
+The merged tree keeps this branch's nav order (Savdo jarayoni first, the live script inside it) with the page icons,
+and brings the monitoring IA and the attestation admin pages. CI's placeholder env: the largest operator route is
+still `/sales-process/scripts` at 170 kB; `/sales-process/objections` 161 → 162 kB (the zod-helper regrouping the S03
+section above describes, not new code); `/admin/assessments` 109 kB, `/admin/assessments/items/[id]` 169 kB,
+`/admin/scripts/[id]` 179 kB; "shared by all" stays 89.5 kB. `/login` reads 200 kB, as before (open item 1).
 
 ## Open items
 

@@ -68,14 +68,15 @@ function overview(email: string, over: Partial<PersonOverview> = {}): PersonOver
 }
 
 function person(email: string, over: Partial<DirectoryPerson> = {}): DirectoryPerson {
-  return { ...user(email), stats: null, activeRecently: null, ...over };
+  return { ...user(email), stats: null, activeRecently: null, onboarding: null, ...over };
 }
 
 describe("buildDirectory", () => {
   it("joins the overview onto the allow-list by email and keeps the allow-list's rows", () => {
     const people = buildDirectory(
       [user("ali@gmail.com", { fullName: "Ali Valiyev" }), user("new@gmail.com")],
-      [overview("ali@gmail.com", { activeMs: 90_000, activeDays: 2, daily: daily({ "2026-09-24": 60_000 }) })]
+      [overview("ali@gmail.com", { activeMs: 90_000, activeDays: 2, daily: daily({ "2026-09-24": 60_000 }) })],
+      null
     );
 
     expect(people.map((p) => p.email)).toEqual(["ali@gmail.com", "new@gmail.com"]);
@@ -89,7 +90,11 @@ describe("buildDirectory", () => {
   });
 
   it("sends one number per day — no dates, no event counts — and the days are recoverable", () => {
-    const [ali] = buildDirectory([user("ali@gmail.com")], [overview("ali@gmail.com", { daily: daily({ "2026-09-24": 1 }) })]);
+    const [ali] = buildDirectory(
+      [user("ali@gmail.com")],
+      [overview("ali@gmail.com", { daily: daily({ "2026-09-24": 1 }) })],
+      null
+    );
     expect(ali?.stats?.dailyMs).toHaveLength(14);
     expect(ali?.stats?.dailyMs.every((ms) => typeof ms === "number")).toBe(true);
     expect(DAYS.map((_, index) => dayAt("2026-09-11", index))).toEqual(DAYS);
@@ -104,13 +109,15 @@ describe("buildDirectory", () => {
   it("prefers the overview's newest event over the allow-list's own", () => {
     const [ali] = buildDirectory(
       [user("ali@gmail.com", { lastActivityAt: "2026-09-01T00:00:00.000Z" })],
-      [overview("ali@gmail.com", { lastSeenAt: "2026-09-24T08:00:00.000Z" })]
+      [overview("ali@gmail.com", { lastSeenAt: "2026-09-24T08:00:00.000Z" })],
+      null
     );
     expect(ali?.lastActivityAt).toBe("2026-09-24T08:00:00.000Z");
 
     const [never] = buildDirectory(
       [user("b@gmail.com", { lastActivityAt: "2026-09-01T00:00:00.000Z" })],
-      [overview("b@gmail.com", { lastSeenAt: null })]
+      [overview("b@gmail.com", { lastSeenAt: null })],
+      null
     );
     expect(never?.lastActivityAt).toBe("2026-09-01T00:00:00.000Z");
   });
@@ -123,7 +130,8 @@ describe("buildDirectory", () => {
         // 2026-09-17 is the 7th day from the end of the 14-day window (the 8th newest).
         overview("old@gmail.com", { daily: daily({ "2026-09-17": 60_000 }) }),
         overview("recent@gmail.com", { daily: daily({ "2026-09-18": 60_000 }) }),
-      ]
+      ],
+      null
     );
     expect(old?.activeRecently).toBe(false);
     expect(recent?.activeRecently).toBe(true);
@@ -132,13 +140,35 @@ describe("buildDirectory", () => {
   it("never gives the admin numbers — telemetry is not recorded for that role", () => {
     const [admin] = buildDirectory(
       [user("owner@gmail.com", { role: "admin" })],
-      [overview("owner@gmail.com", { role: "admin", activeMs: 5_000, activeDays: 1 })]
+      [overview("owner@gmail.com", { role: "admin", activeMs: 5_000, activeDays: 1 })],
+      null
     );
     expect(admin).toMatchObject({ stats: null, activeRecently: null });
   });
 
+  it("joins onboarding progress by email — never for the admin, never made up", () => {
+    const people = buildDirectory(
+      [user("ali@gmail.com"), user("new@gmail.com"), user("owner@gmail.com", { role: "admin" })],
+      [overview("ali@gmail.com")],
+      [
+        { email: "ali@gmail.com", completed: 7, total: 20, updatedAtIso: "2026-09-20T08:00:00.000Z" },
+        { email: "owner@gmail.com", completed: 20, total: 20, updatedAtIso: null },
+      ]
+    );
+    expect(people.map((p) => p.onboarding)).toEqual([{ completed: 7, total: 20 }, null, null]);
+  });
+
+  it("keeps onboarding progress when the overview failed, and drops it when its own read failed", () => {
+    const progress = [{ email: "a@gmail.com", completed: 3, total: 20, updatedAtIso: null }];
+    expect(buildDirectory([user("a@gmail.com")], null, progress)[0]).toMatchObject({
+      stats: null,
+      onboarding: { completed: 3, total: 20 },
+    });
+    expect(buildDirectory([user("a@gmail.com")], [overview("a@gmail.com")], null)[0]?.onboarding).toBeNull();
+  });
+
   it("degrades to no numbers at all when the overview could not be read", () => {
-    const people = buildDirectory([user("a@gmail.com"), user("b@gmail.com")], null);
+    const people = buildDirectory([user("a@gmail.com"), user("b@gmail.com")], null, null);
     expect(people.every((p) => p.stats === null && p.activeRecently === null)).toBe(true);
   });
 });

@@ -79,7 +79,7 @@ export default async function AdminFaqEditPage({
       : {
           id: "",
           category: "",
-          // Prefilled from the Sifat tab's "FAQ yaratish" quick action
+          // Prefilled from the knowledge page's / attention list's "FAQ yaratish" action
           // (/admin/faq/new?question=…) — a zero-result search query the
           // manager is turning straight into a new FAQ entry.
           question: searchParams.question ?? "",

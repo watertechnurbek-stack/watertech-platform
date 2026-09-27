@@ -3,8 +3,11 @@
  * and `operator` an operator, and both use the operator app only. */
 export type Role = "operator" | "manager" | "admin";
 
-/** The admin panel: the CMS (/admin) and the monitoring pages (/dashboard).
- * Admin only — `isAdminArea()` is the one path check for it. */
+/** The admin panel — every page lives under /admin since the S03 monitoring IA.
+ * /dashboard has no pages any more (next.config.js redirects its old tabs to
+ * /admin before middleware runs) but stays an admin area: if a redirect is ever
+ * removed, or a page is added back there, it is still refused to anyone but the
+ * admin. Admin only — `isAdminArea()` is the one path check for it. */
 export const ADMIN_AREAS = ["/admin", "/dashboard"] as const;
 
 /** Roles whose sessions telemetry records and the dashboards list as people

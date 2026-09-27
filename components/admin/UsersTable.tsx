@@ -11,6 +11,7 @@ import type { RemovePersonTarget } from "@/components/admin/people/RemovePersonD
 import { setActive, setRole } from "@/lib/admin/actions/users";
 import { formatRelative } from "@/lib/admin/format";
 import { personPath } from "@/lib/admin/people";
+import type { OnboardingProgress } from "@/lib/admin/directory";
 import {
   ASSIGNABLE_ROLES,
   USER_ROLES,
@@ -83,6 +84,10 @@ function compareUsers(a: AdminUser, b: AdminUser, key: SortKey): number {
  * Every write re-validates on the server and again in SQL; nothing this
  * component disables is a protection, only a courtesy.
  *
+ * The onboarding column is each person's checklist progress when the rows
+ * carry it (the directory joins it in: `onboarding`), "—" for the admin, who
+ * has no checklist, or when it could not be read.
+ *
  * The email is a link to the person's page (/admin/users/[email]). Inside the
  * people directory the table is its "Jadval" view: `hideToolbar` drops its own
  * search, filters and add button, because the directory's tabs, search box and
@@ -94,7 +99,7 @@ export function UsersTable({
   currentEmail,
   hideToolbar = false,
 }: {
-  users: AdminUser[];
+  users: (AdminUser & { onboarding?: OnboardingProgress | null })[];
   currentEmail: string;
   hideToolbar?: boolean;
 }) {
@@ -397,16 +402,16 @@ export function UsersTable({
                           ? formatRelative(user.lastActivityAt, tRel, locale)
                           : t("noActivity")}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 tabular-nums">
                       {/* Operators and sales managers work through the same
                           onboarding checklist; the admin has none. */}
-                      {!isAdminRow ? (
-                        <Link
-                          href={`/dashboard/quality?op=${encodeURIComponent(user.email)}`}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          {t("onboardingLink")}
-                        </Link>
+                      {!isAdminRow && user.onboarding ? (
+                        <span className="text-primary-dark">
+                          {t("onboardingValue", {
+                            completed: user.onboarding.completed,
+                            total: user.onboarding.total,
+                          })}
+                        </span>
                       ) : (
                         <span className="text-text-secondary">—</span>
                       )}

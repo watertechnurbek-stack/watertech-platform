@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   COPILOT_QUESTION_RETENTION_DAYS,
+  copilotAnsweredRate,
   faqPrefillHref,
   formatLatency,
   formatRate,
@@ -88,6 +89,19 @@ describe("formatRate / formatLatency", () => {
     expect(formatLatency(1000, t)).toBe("1 s");
     expect(formatLatency(3600, t)).toBe("3.6 s");
     expect(formatLatency(null, t)).toBe("—");
+  });
+});
+
+describe("copilotAnsweredRate", () => {
+  it("is the answered share of the requests the copilot handled — rate-limited ones left out", () => {
+    // 11 requests, 2 rate-limited: 4 of the 9 handled were answered.
+    expect(copilotAnsweredRate({ total: 11, ok: 4, rateLimited: 2 })).toBeCloseTo(4 / 9);
+    expect(copilotAnsweredRate({ total: 3, ok: 3, rateLimited: 0 })).toBe(1);
+  });
+
+  it("is null when nothing was handled", () => {
+    expect(copilotAnsweredRate({ total: 0, ok: 0, rateLimited: 0 })).toBeNull();
+    expect(copilotAnsweredRate({ total: 2, ok: 0, rateLimited: 2 })).toBeNull();
   });
 });
 

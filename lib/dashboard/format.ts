@@ -1,6 +1,6 @@
 /** Translator for the two duration shapes — the `dashboard.duration` messages
- * ("15 daq" / "2 soat 15 daq"). Shared by the Faollik tab's per-operator
- * cards and the KpiGrid's "total time" card so the two never drift apart. */
+ * ("15 daq" / "2 soat 15 daq"). Shared by the overview, the people directory
+ * and the person page, so a duration reads the same everywhere. */
 export type DurationTranslator = (key: "minutes" | "hoursMinutes", values: { hours: number; minutes: number }) => string;
 
 export function formatDuration(ms: number, t: DurationTranslator): string {

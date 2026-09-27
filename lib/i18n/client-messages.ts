@@ -37,23 +37,11 @@ export const ROOT_CLIENT_NAMESPACES = [
   "pages.tools.calculator",
 ] as const;
 
-/** Added on top of the root list by app/[locale]/(admin)/admin/layout.tsx.
+/** Added on top of the root list by app/[locale]/(admin)/admin/layout.tsx — the one
+ * admin layout since the monitoring pages moved under /admin (S03).
  * `dashboard.duration` ("2 soat 15 daq") is for the people directory's cards,
- * which format active time like the dashboard does (lib/dashboard/format.ts). */
+ * which format active time like the overview does (lib/dashboard/format.ts). */
 export const ADMIN_CLIENT_NAMESPACES = ["admin", "pages.admin", "dashboard.duration"] as const;
-
-/** Added on top of the root list by app/[locale]/dashboard/layout.tsx. `admin.shell` and
- * `admin.nav` are for AdminShell, which both admin layouts mount; `admin.gate` is for
- * GateReportDialog and `admin.errors` / `admin.validation` for useActionError, which the
- * dashboard's QuickActionButton shares with the admin editors. */
-export const DASHBOARD_CLIENT_NAMESPACES = [
-  "dashboard",
-  "admin.shell",
-  "admin.nav",
-  "admin.gate",
-  "admin.errors",
-  "admin.validation",
-] as const;
 
 /** Copies the listed paths out of `messages`, keeping their nesting. Unknown paths are skipped. */
 export function pickMessages(

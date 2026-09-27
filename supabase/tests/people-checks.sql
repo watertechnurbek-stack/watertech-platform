@@ -662,7 +662,11 @@ begin
   select count(*) into audit_rows from public.access_audit;
 
   -- Normalised argument; counts per table; the purged rows are gone.
-  purged := public.admin_purge_person_history('  People-Op2@TEST ');
+  -- 0023 adds three attestation counts to the result; this fixture has no
+  -- attestation rows, so only 0022's three are compared here
+  -- (attestation-checks.sql covers the rest).
+  purged := public.admin_purge_person_history('  People-Op2@TEST ')
+    - array['assessment_attempts', 'assessment_messages', 'assessment_unlocks'];
   expected := jsonb_build_object('telemetry', op2_events, 'user_state', 2, 'copilot', 2);
   if purged is distinct from expected then
     raise exception 'PEOPLE FAIL: admin_purge_person_history(people-op2): expected %, got %', expected, purged;
@@ -693,13 +697,15 @@ begin
   end if;
 
   -- Again: nothing left, zeros (a retried removal repeats its purge).
-  purged := public.admin_purge_person_history('people-op2@test');
+  purged := public.admin_purge_person_history('people-op2@test')
+    - array['assessment_attempts', 'assessment_messages', 'assessment_unlocks'];
   if purged is distinct from '{"telemetry": 0, "user_state": 0, "copilot": 0}'::jsonb then
     raise exception 'PEOPLE FAIL: a repeated purge returned %, expected zeros', purged;
   end if;
 
   -- An email no longer on the allow-list is purged too.
-  purged := public.admin_purge_person_history('people-gone@test');
+  purged := public.admin_purge_person_history('people-gone@test')
+    - array['assessment_attempts', 'assessment_messages', 'assessment_unlocks'];
   expected := jsonb_build_object('telemetry', gone_events, 'user_state', 0, 'copilot', 0);
   if purged is distinct from expected then
     raise exception 'PEOPLE FAIL: admin_purge_person_history(people-gone): expected %, got %', expected, purged;

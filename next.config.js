@@ -53,6 +53,37 @@ function productImageRemotePatterns(supabaseUrl) {
   ];
 }
 
+/** The retired /dashboard monitoring tabs (S03 monitoring IA) and the admin
+ * page that took each one's content; the #ids are the knowledge page's
+ * sections (KNOWLEDGE_SECTIONS in lib/admin/knowledge.ts). Query strings pass
+ * through, so /dashboard/quality?op=… keeps its person filter.
+ * tests/unit/security/monitoring-redirects.test.ts checks this list against
+ * the sections, the locales and the admin areas. */
+const RETIRED_DASHBOARD_PAGES = [
+  ["/dashboard", "/admin"],
+  ["/dashboard/content", "/admin/knowledge#health"],
+  ["/dashboard/quality", "/admin/knowledge#gaps"],
+  ["/dashboard/copilot", "/admin/knowledge#copilot"],
+];
+
+/** Each retired page in every form middleware accepts: unprefixed and /uz
+ * (the default locale, served unprefixed — i18n/routing.ts, localePrefix
+ * "as-needed") go to the unprefixed page, /ru to the /ru page — one hop.
+ *
+ * Config redirects run before middleware, so these answer without a session.
+ * That is safe: every destination is an /admin URL, which middleware and
+ * requireAdminPage gate on the next request, and the redirect itself carries
+ * no data. /dashboard stays in ADMIN_AREAS (lib/auth/claims.ts) anyway, as
+ * defence in depth should one of these ever be removed. Temporary (307), so
+ * the paths stay free to reuse. */
+function retiredDashboardRedirects() {
+  return RETIRED_DASHBOARD_PAGES.flatMap(([from, to]) => [
+    { source: from, destination: to, permanent: false },
+    { source: `/uz${from}`, destination: to, permanent: false },
+    { source: `/ru${from}`, destination: `/ru${to}`, permanent: false },
+  ]);
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -113,6 +144,7 @@ const nextConfig = {
         destination: "/company/onboarding",
         permanent: true,
       },
+      ...retiredDashboardRedirects(),
     ];
   },
 };

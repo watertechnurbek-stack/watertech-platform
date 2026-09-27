@@ -22,7 +22,10 @@ export function formatRelative(
   if (diffHour < 24) return t("hours", { count: diffHour });
   const diffDay = Math.round(diffHour / 24);
   if (diffDay < 30) return t("days", { count: diffDay });
-  return new Date(iso).toLocaleDateString(locale === "ru" ? "ru-RU" : "uz-UZ");
+  // formatDate, not a second toLocaleDateString call: it fixes Asia/Tashkent
+  // (every other date in this file does) — a bare toLocaleDateString(locale)
+  // here printed the server's or the visitor's local calendar day instead.
+  return formatDate(iso, locale);
 }
 
 /** Asia/Tashkent is UTC+5 all year (no DST), as lib/telemetry/aggregate.ts relies on. */
@@ -45,6 +48,17 @@ export function formatDateTime(iso: string, locale: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(iso));
+}
+
+/** A 0–100 score as a percentage with at most one decimal ("72,5 %" in
+ * Russian) — the attestation's day and final scores (admin only). Rounding
+ * happens here, at display; the stored value keeps two decimals.
+ * Server-rendered only, like formatDateTime. */
+export function formatScorePercent(score: number, locale: string): string {
+  return new Intl.NumberFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
+    style: "percent",
+    maximumFractionDigits: 1,
+  }).format(score / 100);
 }
 
 /** The date part of formatDateTime, in the same time zone — for "added on".

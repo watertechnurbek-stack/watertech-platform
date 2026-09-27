@@ -160,6 +160,28 @@ export function allowListGuardCode(sqlstate: string | undefined): AdminErrorCode
   }
 }
 
+/** The refusals of the attestation's admin writes (0023): the
+ * admin_assessment_* functions, the item and config CHECK constraints and RLS.
+ * By SQLSTATE, never by message. */
+export function assessmentDbCode(sqlstate: string | undefined): AdminErrorCode {
+  switch (sqlstate) {
+    case "WT403": // the claim, or the caller's own allow-list row, is not an active admin
+    case "42501": // no privilege, or a row the admin-only policies refuse
+      return "unauthorized";
+    case "WT400":
+    case "23514": // a CHECK: a publish rule, a config shape
+      return "validation";
+    case "WT404":
+      return "not_found";
+    case "WT409": // the attempt changed since it was read
+      return "version_conflict";
+    case PG_UNIQUE_VIOLATION:
+      return "id_taken";
+    default:
+      return "unknown";
+  }
+}
+
 function zodResult(error: ZodError): ActionResult {
   const [first] = error.issues;
   return {

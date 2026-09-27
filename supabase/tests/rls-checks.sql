@@ -25,7 +25,9 @@
 -- 0022 (an admin session may delete an operator's or a sales manager's
 -- allow-list row — never an admin's, never their own — and
 -- admin_purge_person_history() deletes one person's telemetry, user_state and
--- copilot_logs rows under the same refusals).
+-- copilot_logs rows under the same refusals), 0023 (the attestation's five
+-- admin functions refuse an operator and a sales manager; everything else about
+-- the attestation tables is supabase/tests/attestation-checks.sql).
 --
 -- 0013 is the baseline for allowed_users and telemetry_events, which predate
 -- supabase/migrations. On a project where 0013 has not been applied yet, the
@@ -412,6 +414,11 @@ begin
     ('public.admin_person_recent_events(text, integer)'),
     ('public.admin_top_content(timestamptz, timestamptz, integer)'),
     ('public.admin_purge_person_history(text)'),
+    ('public.admin_assessment_override(uuid, numeric, text, integer)'),
+    ('public.admin_assessment_clear_override(uuid, text, integer)'),
+    ('public.admin_assessment_reset(uuid, integer)'),
+    ('public.admin_assessment_reset_person(text)'),
+    ('public.admin_assessment_unlock(text, smallint)'),
     ('public.reorder_content_rows(text, text[], integer[])')
   ) as t(sig)
   where to_regprocedure(t.sig) is not null;
@@ -475,6 +482,18 @@ begin
         -- Another member's history (0022): refused before anything is read.
         ('public.admin_purge_person_history(text)',
           'select public.admin_purge_person_history(''rls-other-op@test'')'),
+        -- The attestation's admin writes (0023): refused before anything is
+        -- read, whatever the arguments (attestation-checks.sql has the rest).
+        ('public.admin_assessment_override(uuid, numeric, text, integer)',
+          'select public.admin_assessment_override(gen_random_uuid(), 100, ''rls'', 1)'),
+        ('public.admin_assessment_clear_override(uuid, text, integer)',
+          'select public.admin_assessment_clear_override(gen_random_uuid(), ''rls'', 1)'),
+        ('public.admin_assessment_reset(uuid, integer)',
+          'select public.admin_assessment_reset(gen_random_uuid())'),
+        ('public.admin_assessment_reset_person(text)',
+          'select public.admin_assessment_reset_person(''op@test'')'),
+        ('public.admin_assessment_unlock(text, smallint)',
+          'select public.admin_assessment_unlock(''op@test'', 2::smallint)'),
         ('public.reorder_content_rows(text, text[], integer[])',
           'select public.reorder_content_rows(''content_faqs'', array[''rls-test-draft''], array[1])')
       ) as t(sig, sql)
@@ -1209,7 +1228,12 @@ begin
   end if;
 
   select count(*) into audit_rows from public.access_audit;
-  select public.admin_purge_person_history('  RLS-Other-Op@Test ') into purged;
+  -- 0023 adds three attestation counts to the result; this fixture has no
+  -- attestation rows, so only 0022's three are compared here
+  -- (attestation-checks.sql covers the rest).
+  select public.admin_purge_person_history('  RLS-Other-Op@Test ')
+           - array['assessment_attempts', 'assessment_messages', 'assessment_unlocks']
+    into purged;
   if purged is distinct from '{"telemetry": 1, "user_state": 1, "copilot": 1}'::jsonb then
     raise exception 'RLS FAIL: admin_purge_person_history returned %, expected one row of each', purged;
   end if;
@@ -1227,7 +1251,9 @@ begin
   end if;
 
   -- A repeat finds nothing: the retry of a removal that failed after its purge.
-  select public.admin_purge_person_history('rls-other-op@test') into purged;
+  select public.admin_purge_person_history('rls-other-op@test')
+           - array['assessment_attempts', 'assessment_messages', 'assessment_unlocks']
+    into purged;
   if purged is distinct from '{"telemetry": 0, "user_state": 0, "copilot": 0}'::jsonb then
     raise exception 'RLS FAIL: a repeated purge returned %, expected zeros', purged;
   end if;

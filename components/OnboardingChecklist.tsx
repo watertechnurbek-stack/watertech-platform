@@ -30,7 +30,7 @@ interface OnboardingChecklistProps {
  */
 export function OnboardingChecklist({ days, summary }: OnboardingChecklistProps) {
   // Synced per user, not per browser: progress follows the operator to another
-  // device, and their manager can see it on /dashboard/quality. The old
+  // device, and the admin sees it in the people directory (/admin/users). The old
   // `onboarding_checklist_v2` localStorage value is imported once on first run.
   const [checkedItems, setCheckedItems, status] = useUserState(
     ONBOARDING_STATE.key,

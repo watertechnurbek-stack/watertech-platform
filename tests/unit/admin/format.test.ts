@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatRelative, formatStableDateTime, type RelativeTimeTranslator } from "@/lib/admin/format";
+import {
+  formatDate,
+  formatRelative,
+  formatScorePercent,
+  formatStableDateTime,
+  type RelativeTimeTranslator,
+} from "@/lib/admin/format";
 
 const t: RelativeTimeTranslator = (key, values) => (values ? `${key}:${values.count}` : key);
 const NOW = Date.parse("2026-09-24T12:00:00.000Z");
@@ -27,6 +33,16 @@ describe("formatRelative", () => {
     expect(formatRelative(ago(45 * DAY), t, "uz", NOW)).not.toContain("days:");
   });
 
+  it("falls back to the office's Tashkent calendar date, not the server's local date", () => {
+    // 21:00 UTC is already 02:00 the next day in Tashkent (UTC+5, no DST) — a
+    // server running in UTC (CI, most hosts) would print the wrong day here if
+    // the fallback ever dropped Asia/Tashkent, the timezone every other date
+    // in this file (formatDate, formatDateTime, formatStableDateTime) uses.
+    const iso = "2026-08-10T21:00:00.000Z";
+    expect(formatRelative(iso, t, "uz", NOW)).toBe(formatDate(iso, "uz"));
+    expect(formatRelative(iso, t, "ru", NOW)).toBe(formatDate(iso, "ru"));
+  });
+
   it("still reads the system clock when none is given", () => {
     expect(formatRelative(new Date().toISOString(), t, "uz")).toBe("now");
   });
@@ -43,5 +59,14 @@ describe("formatStableDateTime", () => {
 
   it("accepts PostgREST's +00:00 form", () => {
     expect(formatStableDateTime("2026-09-24T08:05:00+00:00")).toBe("2026-09-24 13:05");
+  });
+});
+
+describe("formatScorePercent", () => {
+  it("shows a 0–100 score as a percentage with at most one decimal", () => {
+    // Node's ICU spaces and separates by locale; the digits are what matter.
+    expect(formatScorePercent(72.46, "uz").replace(/\s/g, "")).toMatch(/^72[.,]5%$/);
+    expect(formatScorePercent(100, "ru").replace(/\s/g, "")).toBe("100%");
+    expect(formatScorePercent(0, "uz").replace(/\s/g, "")).toBe("0%");
   });
 });

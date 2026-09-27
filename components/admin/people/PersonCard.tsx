@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { Lock } from "lucide-react";
+import { GraduationCap, Lock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { ColumnBars, type ColumnPoint } from "@/components/admin/charts/ColumnBars";
@@ -32,8 +32,9 @@ export interface PersonCardProps {
   onRemove: (person: DirectoryPerson) => void;
 }
 
-/** One person of the directory: who they are, whether they can sign in, when
- * they were last seen and how the last 14 days looked. The whole card is one
+/** One person of the directory: who they are, whether they can sign in, how
+ * far through onboarding they are, when they were last seen and how the last
+ * 14 days looked. The whole card is one
  * link to their page; for an operator or a sales manager a ⋯ menu sits in its
  * corner, next to the link rather than inside it (a button inside an <a> is
  * not valid HTML). Memoized — the directory holds ~200 of them and a
@@ -125,6 +126,14 @@ export const PersonCard = memo(function PersonCard({
               />
               {person.isActive ? tUsers("status.active") : tUsers("status.inactive")}
             </span>
+            {person.onboarding && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary-dark">
+                <GraduationCap size={12} aria-hidden="true" className="shrink-0 text-text-secondary" />
+                {person.onboarding.completed >= person.onboarding.total
+                  ? t("onboardingDone")
+                  : t("onboarding", { completed: person.onboarding.completed, total: person.onboarding.total })}
+              </span>
+            )}
           </div>
 
           {isAdmin ? (

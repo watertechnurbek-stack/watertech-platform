@@ -27,6 +27,7 @@ import {
   contactToRow,
   sopToRow,
 } from "@/lib/content/db";
+import { assessmentSeedRows } from "@/supabase/seed/assessment-items";
 import { checkSeedTarget, formatPlan, parseSeedFlags, type SeedFlags, type TablePlan } from "@/supabase/seed/guard";
 
 // Runs under tsx with `--conditions=react-server` (see package.json), which is
@@ -126,6 +127,12 @@ function seedTables(): SeedTable[] {
     // would reset them to draft, which is now a choice someone has to type.
     { table: "content_contacts", rows: contacts.map((c, i) => ({ ...contactToRow(c), status: "draft", sort_order: i })) },
     { table: "content_sops", rows: sops.map((s, i) => ({ ...sopToRow(s), status: "published", sort_order: i })) },
+    // The attestation item bank (0023): drafts, like the contacts — an admin
+    // reviews each item in /admin/assessments/items and publishes it. Needs
+    // 0023 on the target; without it the plan step fails before any write.
+    // --force would put a published item back to draft (and the audit
+    // records it), so it is a choice someone has to type here too.
+    { table: "assessment_items", rows: assessmentSeedRows().map((row) => ({ ...row })) },
   ];
 }
 

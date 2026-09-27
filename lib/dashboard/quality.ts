@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TRACKED_ROLES } from "@/lib/auth/claims";
 import { ONBOARDING_KEY, onboardingStateSchema } from "@/lib/user-state/keys";
 import { onboardingSummaryChecklist } from "@/lib/content/onboarding";
+import type { WidgetData } from "@/lib/dashboard/telemetry-window";
 
 export interface NotHelpfulGroup {
   path: string;
@@ -17,7 +18,8 @@ export interface NotHelpfulGroup {
  * truly per-entity breakdown would need FeedbackWidget's call sites changed
  * to pass entityType/entityId, which is out of this task's scope. Display
  * label resolution (site-config's node.title is a next-intl "nav" namespace
- * key, not literal text) is the caller's job — see QualityPanel. */
+ * key, not literal text) is the caller's job — see
+ * components/admin/knowledge/NotHelpfulCard.tsx. */
 export function aggregateNotHelpful(rows: TelemetryRow[]): NotHelpfulGroup[] {
   const counts = new Map<string, number>();
   for (const r of rows) {
@@ -79,7 +81,7 @@ export interface MostViewedItem {
 
 const MOST_VIEWED_TYPES: ReadonlySet<TelemetryRow["type"]> = new Set(["stage_view", "objection_view", "faq_view"]);
 
-/** Length of the Sifat tab's "most viewed" list — passed to
+/** Length of the retired Sifat tab's "most viewed" list — passed to
  * public.dashboard_most_viewed as p_limit, and the reference default below. */
 export const MOST_VIEWED_LIMIT = 10;
 
@@ -144,11 +146,17 @@ export function aggregateOnboardingProgress(
 
 /** Admin-only read: the "user_state_manager_select_all" policy in
  * 0009_user_state.sql (admin-only since 0020) is what lets the admin's own
- * session see every row, the same way OperatorFilter reads allowed_users under
- * 0005. Operators and sales managers both work through the checklist, so both
- * are listed — the same people OperatorFilter offers. The caller has already
- * checked the role — a session without it simply gets nothing back. */
-export async function fetchOnboardingProgress(operatorEmail: string | null): Promise<OnboardingProgressRow[]> {
+ * session see every row, the same way the people lookup reads allowed_users
+ * under 0005. Operators and sales managers both work through the checklist, so
+ * both are listed. The caller has already checked the role — a session without
+ * it simply gets nothing back.
+ *
+ * A failed read of either table is { ok: false } (logged here), never a list
+ * of people at 0 of N: the people directory shows no progress chip then,
+ * rather than a row of zeros that reads as "nobody has started". */
+export async function fetchOnboardingProgress(
+  operatorEmail: string | null
+): Promise<WidgetData<OnboardingProgressRow[]>> {
   const supabase = createClient();
 
   const [operatorsResult, statesResult] = await Promise.all([
@@ -156,13 +164,22 @@ export async function fetchOnboardingProgress(operatorEmail: string | null): Pro
     supabase.from("user_state").select("user_email, value, updated_at").eq("key", ONBOARDING_KEY),
   ]);
 
+  const failed = operatorsResult.error ?? statesResult.error;
+  if (failed) {
+    console.error("[dashboard] onboarding progress failed:", failed.code ?? "", failed.message);
+    return { ok: false };
+  }
+
   const operators = (operatorsResult.data ?? [])
     .map((row) => row.email)
     .filter((email) => !operatorEmail || email === operatorEmail);
 
-  return aggregateOnboardingProgress(
-    operators,
-    statesResult.data ?? [],
-    onboardingSummaryChecklist.map((item) => item.id)
-  );
+  return {
+    ok: true,
+    data: aggregateOnboardingProgress(
+      operators,
+      statesResult.data ?? [],
+      onboardingSummaryChecklist.map((item) => item.id)
+    ),
+  };
 }
