@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { ChevronRight, ChevronLeft, Home, type LucideIcon } from "lucide-react";
 import { Link, usePathname } from "@/i18n/routing";
 import { siteTree } from "@/lib/site-config";
-import { contentTypeIcons, LockIcon } from "@/lib/content-type-icon";
+import { NAV_ICONS, LockIcon } from "@/lib/nav-icons";
 import type { NavNode, NavBadges } from "@/lib/types";
 import { durations, easings, noTransition, springs } from "@/lib/motion/tokens";
 import { Logo } from "@/components/Logo";
@@ -109,7 +109,7 @@ const NavItem = memo(function NavItem({
   const children = node.children ?? [];
   const isAncestor = children.length > 0 ? pathname.startsWith(node.path + "/") : false;
   const [open, setOpen] = useState(isAncestor);
-  const Icon = contentTypeIcons[node.contentType];
+  const Icon = NAV_ICONS[node.icon];
   const hasChildren = children.length > 0;
   const rowPaddingLeft = 16 + depth * 16;
   const guideLeft = rowPaddingLeft + 8;
@@ -214,7 +214,7 @@ function CollapsedNavItem({
   const children = node.children ?? [];
   const isAncestor = children.length > 0 ? pathname.startsWith(node.path + "/") : false;
   const active = isActive || isAncestor;
-  const Icon = contentTypeIcons[node.contentType];
+  const Icon = NAV_ICONS[node.icon];
   const hasChildren = children.length > 0;
   const isPinned = node.path === PINNED_PATH;
 
@@ -254,6 +254,7 @@ function CollapsedNavItem({
             <div className="space-y-0.5">
               {children.map((child) => {
                 const childActive = pathname === child.path;
+                const ChildIcon = NAV_ICONS[child.icon];
                 return (
                   <div key={child.path} className="relative">
                     <span
@@ -269,7 +270,8 @@ function CollapsedNavItem({
                           : "text-text-secondary hover:bg-primary/5 hover:text-primary-dark"
                       }`}
                     >
-                      {t(child.title)}
+                      <ChildIcon size={14} className="shrink-0" aria-hidden="true" />
+                      <span className="min-w-0">{t(child.title)}</span>
                     </Link>
                   </div>
                 );

@@ -1,3 +1,5 @@
+import type { NavIconName } from "./nav-icons";
+
 export type ContentType = "doc" | "database" | "video" | "checklist" | "quiz";
 
 export type Audience = "Operator" | "Manager" | "Head";
@@ -8,6 +10,9 @@ export interface NavNode {
   title: string;
   path: string;
   contentType: ContentType;
+  /** The page's own icon in the sidebar and on its section's landing page — a
+   * key of NAV_ICONS (lib/nav-icons.ts), unique across the tree. */
+  icon: NavIconName;
   locked?: boolean;
   description?: string;
   children?: NavNode[];
