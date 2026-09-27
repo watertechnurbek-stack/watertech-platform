@@ -33,7 +33,9 @@ export function AssessmentsSubNav() {
                   active ? "border-accent text-primary-dark" : "border-transparent text-text-secondary hover:text-primary-dark"
                 }`}
               >
-                <Icon size={14} className="shrink-0" aria-hidden="true" />
+                {/* Below sm the three labels alone fill a 375px phone (Russian ones too); the icons would push the
+                    last tab out of view. */}
+                <Icon size={14} className="hidden shrink-0 sm:block" aria-hidden="true" />
                 {t(tab.key)}
               </Link>
             </li>
