@@ -5,10 +5,20 @@ import type { NavNode } from "./types";
 // messages/uz.json's "nav" namespace for the actual copy in both locales.
 export const siteTree: NavNode[] = [
   {
-    title: "salesProcess.scripts.title",
-    path: "/sales-process/scripts",
+    title: "salesProcess.title",
+    path: "/sales-process",
     contentType: "doc",
-    description: "salesProcess.scripts.description",
+    description: "salesProcess.description",
+    children: [
+      {
+        title: "salesProcess.scripts.title",
+        path: "/sales-process/scripts",
+        contentType: "doc",
+        description: "salesProcess.scripts.description",
+      },
+      { title: "salesProcess.objections.title", path: "/sales-process/objections", contentType: "database" },
+      { title: "salesProcess.battleCards.title", path: "/sales-process/battle-cards", contentType: "database" },
+    ],
   },
   {
     title: "company.title",
@@ -34,16 +44,6 @@ export const siteTree: NavNode[] = [
       { title: "products.comparisons.title", path: "/products/comparisons", contentType: "doc" },
       { title: "products.technicalDocs.title", path: "/products/technical-docs", contentType: "doc" },
       { title: "products.roadmap.title", path: "/products/roadmap", contentType: "doc", locked: true },
-    ],
-  },
-  {
-    title: "salesProcess.title",
-    path: "/sales-process",
-    contentType: "doc",
-    description: "salesProcess.description",
-    children: [
-      { title: "salesProcess.objections.title", path: "/sales-process/objections", contentType: "database" },
-      { title: "salesProcess.battleCards.title", path: "/sales-process/battle-cards", contentType: "database" },
     ],
   },
   {

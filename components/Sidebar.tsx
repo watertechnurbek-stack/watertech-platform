@@ -13,10 +13,10 @@ import { Logo } from "@/components/Logo";
 
 const COLLAPSE_KEY = "watertech-sidebar-collapsed";
 
-// The one nav item operators need fastest, during a live call — visually
-// set apart from its two group siblings (Kompaniya, Mahsulot va narx) with
-// an accent border, not moved or regrouped. Purely visual; navigation
-// logic and ordering are unchanged.
+// The one nav item operators need fastest, during a live call — the first
+// entry of "Savdo jarayoni", which comes right after "Bugun". Set apart with
+// an accent border, and its section starts expanded on every page, so the
+// live script is always one click away.
 const PINNED_PATH = "/sales-process/scripts";
 
 function NavCountBadge({ tone, count }: { tone: "ok" | "warning"; count: number }) {
@@ -34,7 +34,7 @@ function NavCountBadge({ tone, count }: { tone: "ok" | "warning"; count: number 
 /** Purely visual clustering of the top-level sections — chunk sizes must sum
  * to siteTree.length. Groups get extra margin between them so the sidebar
  * reads as clusters, not one continuous list. */
-const NAV_GROUP_SIZES = [3, 2, 3, 2];
+const NAV_GROUP_SIZES = [1, 3, 2, 2];
 
 function chunk<T>(items: T[], sizes: number[]): T[][] {
   const groups: T[][] = [];
@@ -108,12 +108,12 @@ const NavItem = memo(function NavItem({
   const isActive = pathname === node.path;
   const children = node.children ?? [];
   const isAncestor = children.length > 0 ? pathname.startsWith(node.path + "/") : false;
-  const [open, setOpen] = useState(isAncestor);
+  const [open, setOpen] = useState(isAncestor || children.some((child) => child.path === PINNED_PATH));
   const Icon = contentTypeIcons[node.contentType];
   const hasChildren = children.length > 0;
   const rowPaddingLeft = 16 + depth * 16;
   const guideLeft = rowPaddingLeft + 8;
-  const isPinned = depth === 0 && node.path === PINNED_PATH;
+  const isPinned = node.path === PINNED_PATH;
 
   useEffect(() => {
     if (isAncestor) setOpen(true);
@@ -216,7 +216,9 @@ function CollapsedNavItem({
   const active = isActive || isAncestor;
   const Icon = contentTypeIcons[node.contentType];
   const hasChildren = children.length > 0;
-  const isPinned = node.path === PINNED_PATH;
+  // The rail shows top-level rows only, so the marker sits on the section
+  // that holds the live script.
+  const isPinned = node.path === PINNED_PATH || children.some((child) => child.path === PINNED_PATH);
 
   return (
     <div className="group relative flex justify-center">
