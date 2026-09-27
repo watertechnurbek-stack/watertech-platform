@@ -186,7 +186,9 @@ components/ui/              Dialog  ErrorBoundary  PinButton  RecentRecorder  Sk
                             WidgetBoundary  WidgetFallback  toast-store.ts
 components/providers/       SessionProvider  OfflineBanner  WebVitalsReporter
 components/products/        ProductsCatalog          components/tools/     BatchCalculator
-components/scripts/         ScriptsWorkspace  ScriptsContentContext
+components/scripts/         ScriptsWorkspace  ScriptsContentContext  ObjectionsPlaybook  ObjectionDetail
+                            (/sales-process/objections: list + one answer card, ?o= deep link; pure logic in
+                            lib/content/objection-view.ts)
 components/story/           StickyRevealStory  about-illustrations.tsx  sticky-reveal-geometry.ts (/company/about)
                             ManifestStory  MissionWords  VisionSegment  ValueStack  manifest-geometry.ts  value-icons.tsx
                             (R3/S06, /company/mission-values)

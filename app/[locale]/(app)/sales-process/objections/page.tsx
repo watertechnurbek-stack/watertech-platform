@@ -1,45 +1,20 @@
 import { unstable_setRequestLocale, getTranslations } from "next-intl/server";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { DatabaseTemplate, DbColumn } from "@/components/DatabaseTemplate";
+import { ObjectionsPlaybook } from "@/components/scripts/ObjectionsPlaybook";
 import { getObjections, getScripts } from "@/lib/content/loader";
+import { buildObjectionEntries } from "@/lib/content/objection-view";
 import type { Locale } from "@/i18n/routing";
-
-interface ObjectionRow {
-  id: string;
-  objection: string;
-  realMeaning: string;
-  response: string;
-  followUp: string;
-  sourceScripts: string;
-}
 
 export default async function ObjectionsPage({ params: { locale } }: { params: { locale: Locale } }) {
   unstable_setRequestLocale(locale);
-  const [t, tNav, tPage] = await Promise.all([
-    getTranslations("emptyState.objectionsNone"),
+  const [tNav, tPage] = await Promise.all([
     getTranslations("nav"),
     getTranslations("pages.salesProcess.objections"),
   ]);
 
-  const columns: DbColumn<ObjectionRow>[] = [
-    { key: "objection", label: tPage("columns.objection"), sortable: true, type: "longtext" },
-    { key: "realMeaning", label: tPage("columns.realMeaning"), type: "longtext" },
-    { key: "response", label: tPage("columns.response"), type: "longtext" },
-    { key: "followUp", label: tPage("columns.followUp"), type: "longtext" },
-    { key: "sourceScripts", label: tPage("columns.sourceScripts") },
-  ];
-
   const [objections, scripts] = await Promise.all([getObjections(locale), getScripts(locale)]);
-  const scriptNameById = new Map(scripts.map((s) => [s.id, s.name]));
-  const rows: ObjectionRow[] = objections.map((o) => ({
-    id: o.id,
-    objection: `"${o.clientSays}"`,
-    realMeaning: o.realMeaning,
-    response: o.response,
-    followUp: o.followUp ?? "—",
-    sourceScripts: o.scriptIds.map((id) => scriptNameById.get(id) ?? id).join(", "),
-  }));
+  const entries = buildObjectionEntries(objections, scripts);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
@@ -56,17 +31,7 @@ export default async function ObjectionsPage({ params: { locale } }: { params: {
         </p>
       </div>
 
-      <DatabaseTemplate
-        columns={columns}
-        rows={rows}
-        copyEntityType="objection"
-        emptyState={{
-          stateKey: "objectionsNone",
-          title: t("title"),
-          reason: t("reason"),
-          cta: { kind: "open-search", label: t("cta") },
-        }}
-      />
+      <ObjectionsPlaybook entries={entries} />
     </div>
   );
 }

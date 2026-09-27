@@ -33,6 +33,7 @@ export const ROOT_CLIENT_NAMESPACES = [
   "pages.products.catalog",
   "pages.products.technicalDocs.certificates",
   "pages.salesProcess.battleCards.detail",
+  "pages.salesProcess.objections.playbook",
   "pages.tools.calculator",
 ] as const;
 

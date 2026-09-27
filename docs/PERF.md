@@ -662,6 +662,22 @@ only when `activeBeatIndex` changes — 8 commits for a full scroll down and bac
 only beat 0), so the static page ships one drawing in the card; below lg each chapter's inline drawing is plain
 `<path>`s until it is armed off-screen, then draws once (`useRevealPhase`).
 
+## `/sales-process/objections` → ObjectionsPlaybook (2026-09-27)
+
+The page no longer renders the five-column `DatabaseTemplate` table; it passes `buildObjectionEntries()` (server,
+`lib/content/objection-view.ts`) to the `ObjectionsPlaybook` client island (searchable objection list + one
+`ObjectionDetail` answer card, `PinButton`, `CopyButton`, `ContentFade`). No dependency, no layout or shared module
+changed. One client message path added to `ROOT_CLIENT_NAMESPACES`: `pages.salesProcess.objections.playbook` (16
+short strings per locale). Built with CI's placeholder env against `e62b9ec`:
+
+| Route | Before (`e62b9ec`) | After |
+|---|---:|---:|
+| `/sales-process/objections` | 141 kB (page 228 B) | **161 kB** (page 8.11 kB) |
+
++20 kB, under the 180 kB budget: the island itself plus `PinButton`/`usePins` and `ContentFade`, which other routes
+already load (so they are shared chunks, not new code). Every other row of the route table is identical; "shared by
+all" stays 89.5 kB.
+
 ## Open items
 
 1. ~~Supabase browser client imported statically~~ - done in S14, see above. `/login` still imports it, by design.

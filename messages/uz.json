@@ -1890,12 +1890,23 @@
     "salesProcess": {
       "objections": {
         "description": "To'liq e'tirozlar bilan ishlash bazasi — nima deyiladi, bu nimani anglatadi va qanday javob berish kerak.",
-        "columns": {
-          "objection": "E'tiroz",
-          "realMeaning": "Nima demoqchi",
-          "response": "Javob",
-          "followUp": "Qo'shimcha / keyingi qadam",
-          "sourceScripts": "Qaysi skriptda"
+        "playbook": {
+          "searchLabel": "E'tirozni qidirish",
+          "searchPlaceholder": "Mijoz nima dedi? Masalan: qimmat, fiting, o'ylab ko'raman",
+          "count": "{shown} / {total}",
+          "listLabel": "E'tirozlar ro'yxati",
+          "position": "E'tiroz {index} / {total}",
+          "steps": {
+            "clientSays": "Mijoz aytadi",
+            "realMeaning": "Aslida nimani anglatadi",
+            "response": "Siz javob berasiz",
+            "followUp": "Keyingi qadam"
+          },
+          "copyResponse": "Javobni nusxalash",
+          "usedIn": "Skriptda ochish:",
+          "prev": "Oldingi",
+          "next": "Keyingi",
+          "shortcutHint": "↑ ↓ — e'tirozlar orasida, / — qidiruv"
         },
         "important": "<strong>Muhim:</strong> \"O'ylab ko'raman\" yoki \"Keyinroq telefon qilaman\" kabi maqsadsiz javoblar hech qachon yakuniy javob sifatida qabul qilinmaydi — operator har doim aniqlashtiruvchi savol bilan davom ettirishi kerak."
       },
