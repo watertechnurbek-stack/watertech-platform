@@ -705,6 +705,37 @@ in one `Promise.all`; no island fetches. What follows it in the network panel is
 (nav, range pills, row links), which for these dynamic routes renders only up to their `loading.tsx`; the knowledge
 page's per-question FAQ links are `prefetch={false}`.
 
+## Page icons in the operator sidebar (2026-09-27)
+
+Every `siteTree` page has its own lucide icon (`lib/nav-icons.ts`, 39 icons, one per page, checked by
+`tests/unit/nav-icons.test.ts`) instead of one per content type (`lib/content-type-icon.tsx`, deleted): the sidebar,
+the collapsed rail and its flyouts (whose child rows gained an icon), the phone drawer and the section landing cards.
+Admin: the attestation tabs got `ChartColumn` / `Library` / `Settings` (hidden below `sm`, where the three labels
+alone fill a 375 px phone), and "Raqobatchilar" `Users` → `Swords`. No dependency and no message namespace added.
+Both trees built in scratch copies with CI's placeholder env (baseline `3489ce4`); "Exact" is gzip level 9 over the
+route's `app-build-manifest.json` entry.
+
+| Route | Before | After | Exact before → after |
+|---|---:|---:|---:|
+| `/sales-process/scripts` (largest operator route) | 170 kB | 170 kB | 169.866 → 170.374 kB |
+| `/products` | 166 kB | 167 kB | 165.918 → 166.562 kB |
+| `/company/mission-values` | 161 kB | 162 kB | 161.136 → 161.779 kB |
+| `/` | 160 kB | 161 kB | 160.429 → 160.829 kB |
+| `/company/onboarding` | 160 kB | 161 kB | 160.145 → 160.800 kB |
+| `/sales-process/scripts/[slug]` (largest change) | 144 kB | 145 kB | 143.574 → 144.775 kB |
+| section landings (`/company`, `/tools`, `/tools/amocrm`, …) | 134 kB | 134 kB | 133.520 → 134.172 kB |
+| `/admin` · `/admin/scripts/[id]` · `/admin/assessments/items/[id]` | 135 · 179 · 170 kB | 136 · 179 · 170 kB | +0.40 · +0.41 · +0.37 kB |
+
+The table grows by 0.24–1.2 kB per operator route and 0.36–0.44 kB per page under the admin layout; the largest
+operator route stays `/sales-process/scripts` at 170.374 kB, under the 180 kB budget; "shared by all" stays 89.5 kB.
+The table does not count the `(app)` layout's own chunks, where the sidebar lives, so the measured payload says more
+here: 33 prerendered `uz` operator pages (the placeholder env prerenders no `[slug]` page) load **187.8 / 193.5 /
+218.4 → 188.1 / 190.6 / 218.2 kB** of scripts (gzip, min / median / max), −4.9 to +0.3 kB per page. `/` now ships 80
+lucide icons instead of 52 (31 added; `FlaskConical`, `ListChecks`, `Video` went with the content-type map), and
+webpack regrouped the shared chunks around the new module: the empty-state registry, which it used to copy into the
+`(app)/not-found` chunk (1.77 → 0.15 kB), now sits once in a shared chunk. That pays for the icons on most pages. HTML
+grows 0.9 / 1.5 / 2.4 kB uncompressed (the icons' SVG paths in the server-rendered sidebar and cards).
+
 ## Open items
 
 1. ~~Supabase browser client imported statically~~ - done in S14, see above. `/login` still imports it, by design.
