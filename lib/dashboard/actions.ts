@@ -40,7 +40,7 @@ async function writeAndRevalidate(
     ref.expectedVersion
   );
   revalidateContent(DASHBOARD_TABLE_KIND[table]);
-  revalidatePath("/[locale]/dashboard/content", "page");
+  revalidatePath("/[locale]/(admin)/admin/knowledge", "page");
   return actionOk();
 }
 

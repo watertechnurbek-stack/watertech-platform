@@ -10,8 +10,8 @@ import {
   type UnansweredQuestion,
 } from "@/lib/dashboard/copilot";
 
-// The two 0019 functions, called with the manager's own session (RLS-scoped,
-// SECURITY INVOKER). Like the other dashboard tabs, a failed call is an
+// The two 0019 functions, called with the admin's own session (RLS-scoped,
+// SECURITY INVOKER). Like every monitoring widget, a failed call is an
 // explicit error state for its widget, never an empty one that reads as "no
 // questions".
 

@@ -20,17 +20,14 @@ const LOCALES: [string, Messages][] = [
   ["ru", ru],
 ];
 
-/** The two route trees the admin panel spans, and where their pages live. */
-const AREAS = [
-  { base: "/admin", dir: "app/[locale]/(admin)/admin" },
-  { base: "/dashboard", dir: "app/[locale]/dashboard" },
-] as const;
+/** The route tree the admin panel spans, and where its pages live. Since the S03
+ * monitoring IA it is /admin alone — /dashboard only redirects (next.config.js). */
+const AREAS = [{ base: "/admin", dir: "app/[locale]/(admin)/admin" }] as const;
 
 /** Routes that are deliberately not a nav entry: a row's version history is
  * opened from that row. */
 const NOT_IN_NAV: Record<(typeof AREAS)[number]["base"], string[]> = {
   "/admin": ["versions"],
-  "/dashboard": [],
 };
 
 function hasPath(tree: Messages, dotted: string): boolean {
@@ -98,11 +95,29 @@ describe("ADMIN_NAV_GROUPS completeness", () => {
     expect(ADMIN_NAV_ITEMS.map((item) => item.href)).toEqual(hrefs);
   });
 
-  it("opens with the overview, and marks both landing pages exact", () => {
+  it("opens with the overview, and marks the landing page exact", () => {
     expect(ADMIN_NAV_ITEMS[0]?.href).toBe("/admin");
     for (const { base } of AREAS) {
       expect(ADMIN_NAV_ITEMS.find((item) => item.href === base)?.exact, base).toBe(true);
     }
+  });
+
+  it("has one page per monitoring question, and the technical page under System (S03, R4/S04)", () => {
+    // Bosh panel, Xodimlar, Attestatsiya, Bilim sifati — in that order.
+    expect(adminNavGroup("monitoring").items.map((item) => item.href)).toEqual([
+      "/admin",
+      "/admin/users",
+      "/admin/assessments",
+      "/admin/knowledge",
+    ]);
+    expect(adminNavGroup("system").items.map((item) => item.href)).toEqual([
+      "/admin/activity",
+      "/admin/notifications",
+      "/admin/trash",
+      "/admin/system",
+    ]);
+    // The retired tabs are redirects now, never a nav entry.
+    expect(ADMIN_NAV_ITEMS.filter((item) => item.href.startsWith("/dashboard"))).toEqual([]);
   });
 
   it.each(ADMIN_NAV_ITEMS.map((item) => [item.href, item] as const))("%s has a page on disk", (_href, item) => {
@@ -144,18 +159,19 @@ describe("ADMIN_NAV_GROUPS completeness", () => {
     });
   });
 
-  it("is what the shell is built from, and both admin layouts mount that one shell", () => {
+  it("is what the shell is built from, and the admin layout mounts that one shell", () => {
     const read = (file: string): string => readFileSync(path.join(ROOT, file), "utf8");
     const shell = read("components/admin/AdminShell.tsx");
     expect(shell).toContain('from "@/lib/admin/nav"');
     expect(shell).toContain(`useTranslations("${ADMIN_NAV_MESSAGES}")`);
     expect(read("app/[locale]/(admin)/admin/layout.tsx")).toContain("<AdminShell");
-    expect(read("app/[locale]/dashboard/layout.tsx")).toContain("<AdminShell");
-    // The retired second header, its tabs and the area switch stay gone.
+    // The retired second header, its tabs, the area switch and the /dashboard
+    // route tree (S03) stay gone.
     for (const file of [
       "components/ManagerMonitoringHeader.tsx",
       "components/dashboard/DashboardTabs.tsx",
       "components/admin/ManagerAreaSwitch.tsx",
+      "app/[locale]/dashboard",
     ]) {
       expect(existsSync(path.join(ROOT, file)), file).toBe(false);
     }
@@ -172,8 +188,7 @@ describe("isNavItemActive", () => {
   it("lights a landing page only on itself", () => {
     expect(isNavItemActive(item("/admin"), "/admin")).toBe(true);
     expect(isNavItemActive(item("/admin"), "/admin/faq")).toBe(false);
-    expect(isNavItemActive(item("/dashboard"), "/dashboard")).toBe(true);
-    expect(isNavItemActive(item("/dashboard"), "/dashboard/quality")).toBe(false);
+    expect(isNavItemActive(item("/admin"), "/admin/knowledge")).toBe(false);
   });
 
   it("lights a section on its own pages, including nested ones", () => {
@@ -181,6 +196,8 @@ describe("isNavItemActive", () => {
     expect(isNavItemActive(item("/admin/packages"), "/admin/packages/groups")).toBe(true);
     expect(isNavItemActive(item("/admin/packages"), "/admin/packages/pkg-1")).toBe(true);
     expect(isNavItemActive(item("/admin/users"), "/admin/users/ali%40example.com")).toBe(true);
+    expect(isNavItemActive(item("/admin/knowledge"), "/admin/knowledge")).toBe(true);
+    expect(isNavItemActive(item("/admin/system"), "/admin/system")).toBe(true);
   });
 
   it("matches whole segments only", () => {

@@ -3,26 +3,18 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import ru from "@/messages/ru.json";
 import uz from "@/messages/uz.json";
-import {
-  ADMIN_CLIENT_NAMESPACES,
-  DASHBOARD_CLIENT_NAMESPACES,
-  ROOT_CLIENT_NAMESPACES,
-  pickMessages,
-} from "@/lib/i18n/client-messages";
+import { ADMIN_CLIENT_NAMESPACES, ROOT_CLIENT_NAMESPACES, pickMessages } from "@/lib/i18n/client-messages";
 
 type Messages = { [key: string]: string | Messages };
-type Area = "operator" | "admin" | "dashboard";
+type Area = "operator" | "admin";
 
 const ROOT = path.resolve(__dirname, "../../..");
 const SOURCE_DIRS = ["components", "hooks", "lib", "app"];
 
 /** Files whose path does not say which provider mounts them. useActionError is the admin
- * CMS's error copy, shared with the dashboard's QuickActionButton — no operator page mounts it. */
+ * CMS's error copy, shared with the knowledge page's QuickActionButton — no operator page
+ * mounts it. */
 const AREA_BY_FILE = new Map<string, Area>([["hooks/useActionError.ts", "admin"]]);
-
-/** Client files that other providers mount too, on top of their own area: AdminShell is the
- * shell of both the admin and the dashboard layout, so both lists must cover what it reads. */
-const ALSO_MOUNTED_IN = new Map<string, Area[]>([["components/admin/AdminShell.tsx", ["dashboard"]]]);
 
 function listSources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -49,9 +41,10 @@ function isClientFile(source: string): boolean {
 function areaOf(file: string): Area {
   const pinned = AREA_BY_FILE.get(file);
   if (pinned) return pinned;
-  if (file.startsWith("components/admin/") || file.includes("(admin)")) return "admin";
-  if (file.startsWith("components/dashboard/") || file.startsWith("app/[locale]/dashboard/")) {
-    return "dashboard";
+  // components/dashboard/ holds the monitoring pages' shared controls (RangePicker,
+  // QuickActionButton…); since the S03 monitoring IA only the admin layout mounts them.
+  if (file.startsWith("components/admin/") || file.startsWith("components/dashboard/") || file.includes("(admin)")) {
+    return "admin";
   }
   return "operator";
 }
@@ -69,11 +62,7 @@ const IMPORT_RE = /(?:import|export)\s[^;]*?from\s+["']([^"']+)["']|import\(\s*[
 /** Every file that ends up in a client bundle when the area's "use client" files are used. */
 function clientReachable(area: Area): Set<string> {
   const seen = new Set<string>();
-  const queue = [...sources.keys()].filter(
-    (file) =>
-      (areaOf(file) === area || (ALSO_MOUNTED_IN.get(file) ?? []).includes(area)) &&
-      isClientFile(sources.get(file) ?? ""),
-  );
+  const queue = [...sources.keys()].filter((file) => areaOf(file) === area && isClientFile(sources.get(file) ?? ""));
   for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
     if (seen.has(file)) continue;
     seen.add(file);
@@ -134,13 +123,13 @@ describe("client message allow-lists", () => {
     expect(uncovered("admin", [...ROOT_CLIENT_NAMESPACES, ...ADMIN_CLIENT_NAMESPACES])).toEqual([]);
   });
 
-  it("dashboard list covers every namespace read by dashboard client components", () => {
-    expect(uncovered("dashboard", [...ROOT_CLIENT_NAMESPACES, ...DASHBOARD_CLIENT_NAMESPACES])).toEqual([]);
+  it("the admin layout is the only other provider — the /dashboard layout is gone", () => {
+    expect(existsSync(path.join(ROOT, "app/[locale]/dashboard"))).toBe(false);
   });
 
   it("every listed path exists in both locales", () => {
     const locales: Record<string, Messages> = { uz, ru };
-    const listed = [...ROOT_CLIENT_NAMESPACES, ...ADMIN_CLIENT_NAMESPACES, ...DASHBOARD_CLIENT_NAMESPACES];
+    const listed = [...ROOT_CLIENT_NAMESPACES, ...ADMIN_CLIENT_NAMESPACES];
     const missing = Object.entries(locales).flatMap(([locale, tree]) =>
       listed.filter((dotted) => !hasPath(tree, dotted)).map((dotted) => `${locale}: ${dotted}`),
     );

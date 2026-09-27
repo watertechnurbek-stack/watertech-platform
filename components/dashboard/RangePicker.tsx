@@ -2,9 +2,9 @@ import { getTranslations } from "next-intl/server";
 import { RangePickerLink } from "@/components/dashboard/RangePickerLink";
 import { buildRangePresets, type DashboardRange } from "@/lib/dashboard/range";
 
-/** Plain GET links, no client state — each preset sets from/to while
- * preserving the current operator filter and pointing back at whichever
- * dashboard tab it's rendered on. */
+/** Plain GET links, no client state — each preset (RANGE_PRESET_DAYS) sets
+ * from/to while preserving the current person filter and pointing back at
+ * whichever admin page it's rendered on. */
 export async function RangePicker({ range, basePath }: { range: DashboardRange; basePath: string }) {
   const t = await getTranslations("dashboard.ranges");
   const presets = buildRangePresets();

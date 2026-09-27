@@ -2,10 +2,9 @@ import {
   Activity,
   AlertCircle,
   Bell,
-  Bot,
+  BookOpenCheck,
   Boxes,
   ClipboardCheck,
-  FileStack,
   HelpCircle,
   History,
   LayoutDashboard,
@@ -14,7 +13,6 @@ import {
   Package,
   Phone,
   ScrollText,
-  Star,
   Trash2,
   Users,
   UsersRound,
@@ -22,10 +20,15 @@ import {
 } from "lucide-react";
 
 // The one description of the admin panel's navigation (CLAUDE.md §15). Every
-// page of /admin/** and /dashboard/** renders inside AdminShell, whose left nav
-// (and phone strip) is built from ADMIN_NAV_GROUPS: Monitoring · Content ·
-// System. A new admin page is added here once; tests/unit/admin/nav.test.ts
-// checks the config against the pages on disk and against both message files.
+// page of /admin/** renders inside AdminShell, whose left nav (and phone strip)
+// is built from ADMIN_NAV_GROUPS: Monitoring · Content · System. Monitoring is
+// four pages, one question each: the overview ("how is my team doing and what
+// needs me now?"), the people directory, the attestation (R4/S04: "how did each
+// person do on it?") and knowledge quality ("is the knowledge base answering the
+// operators?"); the old /dashboard tabs redirect to the S03 pages
+// (next.config.js). A new admin page is added here once;
+// tests/unit/admin/nav.test.ts checks the config against the pages on disk and
+// against both message files.
 //
 // Client-safe on purpose (icons, strings, pure functions): it is imported by
 // Client Components.
@@ -61,10 +64,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin", label: "overview", icon: LayoutDashboard, exact: true },
       { href: "/admin/users", label: "people", icon: UsersRound },
       { href: "/admin/assessments", label: "assessments", icon: ClipboardCheck },
-      { href: "/dashboard", label: "activityDetails", icon: Activity, exact: true },
-      { href: "/dashboard/content", label: "contentHealth", icon: FileStack },
-      { href: "/dashboard/quality", label: "quality", icon: Star },
-      { href: "/dashboard/copilot", label: "copilot", icon: Bot },
+      { href: "/admin/knowledge", label: "knowledge", icon: BookOpenCheck },
     ],
   },
   {
@@ -87,6 +87,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/activity", label: "history", icon: History },
       { href: "/admin/notifications", label: "notifications", icon: Bell },
       { href: "/admin/trash", label: "trash", icon: Trash2 },
+      { href: "/admin/system", label: "system", icon: Activity },
     ],
   },
 ];

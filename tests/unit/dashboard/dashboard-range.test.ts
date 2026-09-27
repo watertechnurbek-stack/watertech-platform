@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_RANGE_SPAN_DAYS, lastDaysRange, parseDashboardRange, rangeDayCount } from "@/lib/dashboard/range";
+import { DIRECTORY_WINDOW_DAYS } from "@/lib/admin/directory";
+import {
+  DEFAULT_RANGE_DAYS,
+  MAX_RANGE_SPAN_DAYS,
+  MONITORING_RANGE_DAYS,
+  buildRangePresets,
+  lastDaysRange,
+  parseDashboardRange,
+  rangeDayCount,
+  rangeSearchParams,
+  withSearch,
+} from "@/lib/dashboard/range";
 
 // 2026-09-16T20:30Z is already 01:30 on 2026-09-17 in Tashkent (UTC+5), so a
 // default window computed from the UTC date would be off by one day.
@@ -18,6 +29,20 @@ afterEach(() => {
 describe("parseDashboardRange", () => {
   it("defaults to the 7-day window ending today in Tashkent", () => {
     expect(parseDashboardRange({})).toEqual({ from: "2026-09-11", to: TODAY_TASHKENT, operatorEmail: null });
+  });
+
+  it("takes a page's own default window — the monitoring pages open on two weeks", () => {
+    expect(DEFAULT_RANGE_DAYS).toBe(7);
+    expect(parseDashboardRange({}, { defaultDays: MONITORING_RANGE_DAYS })).toEqual({
+      from: "2026-09-04",
+      to: TODAY_TASHKENT,
+      operatorEmail: null,
+    });
+    // An explicit range still wins.
+    expect(parseDashboardRange({ from: "2026-09-10", to: "2026-09-12" }, { defaultDays: 14 })).toMatchObject({
+      from: "2026-09-10",
+      to: "2026-09-12",
+    });
   });
 
   it("keeps a valid explicit range as-is", () => {
@@ -110,5 +135,44 @@ describe("rangeDayCount", () => {
     expect(rangeDayCount({ from: "2026-09-11", to: "2026-09-17" })).toBe(7);
     expect(rangeDayCount({ from: "2026-09-17", to: "2026-09-17" })).toBe(1);
     expect(rangeDayCount({ from: "2026-08-30", to: "2026-09-02" })).toBe(4);
+  });
+});
+
+describe("buildRangePresets", () => {
+  it("offers 7, 14 and 30 days ending today, in that order", () => {
+    expect(buildRangePresets()).toEqual([
+      { key: "7d", from: "2026-09-11", to: TODAY_TASHKENT },
+      { key: "14d", from: "2026-09-04", to: TODAY_TASHKENT },
+      { key: "30d", from: "2026-08-19", to: TODAY_TASHKENT },
+    ]);
+  });
+
+  it("matches the people directory's window with the monitoring default", () => {
+    expect(MONITORING_RANGE_DAYS).toBe(DIRECTORY_WINDOW_DAYS);
+    expect(buildRangePresets().map((preset) => preset.key)).toContain(`${MONITORING_RANGE_DAYS}d`);
+  });
+});
+
+describe("rangeSearchParams", () => {
+  it("is empty for the target page's own default window", () => {
+    const range = { ...lastDaysRange(14), operatorEmail: null };
+    expect(rangeSearchParams(range, 14).toString()).toBe("");
+  });
+
+  it("names the range when it differs from the target's default, and the person filter when set", () => {
+    const range = { ...lastDaysRange(14), operatorEmail: "ali@x.uz" };
+    expect(rangeSearchParams(range, 7).toString()).toBe("from=2026-09-04&to=2026-09-17&op=ali%40x.uz");
+    expect(rangeSearchParams({ from: "2026-09-01", to: "2026-09-10", operatorEmail: null }, 14).toString()).toBe(
+      "from=2026-09-01&to=2026-09-10"
+    );
+  });
+});
+
+describe("withSearch", () => {
+  it("joins a path, its params and a hash, leaving out what is empty", () => {
+    expect(withSearch("/admin/knowledge", new URLSearchParams())).toBe("/admin/knowledge");
+    expect(withSearch("/admin/knowledge", new URLSearchParams("from=a&to=b"), "gaps")).toBe(
+      "/admin/knowledge?from=a&to=b#gaps"
+    );
   });
 });

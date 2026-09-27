@@ -14,8 +14,8 @@
 
 Internal sales knowledge base for WaterTech operators (Uzbekistan). Operators and sales managers read
 call scripts, objection handling, product catalog, FAQ, competitor battle-cards in the **operator app**;
-the owner (role `admin`) runs the **admin panel** (`/admin` CMS + people analytics + the attestation, `/dashboard`
-monitoring).
+the owner (role `admin`) runs the **admin panel** (`/admin`: monitoring — overview, people, the attestation,
+knowledge quality — plus the CMS and system pages; the retired `/dashboard` URLs redirect there, §15).
 ~30 users, Google OAuth, allow-list based roles `admin` | `manager` | `operator` — see §7 "Role model v2".
 
 - Framework: **Next.js 14.2 App Router**, React 18, TypeScript `strict`, Tailwind 3.4.
@@ -60,10 +60,13 @@ app/
     (app)/                         operator app; layout.tsx mounts <AppShell>
       <section>/page.tsx           one route = one page.tsx; sections mirror lib/site-config.ts
       <section>/loading.tsx        section-specific skeleton (products, sales-process, dashboard)
-    (admin)/admin/                 admin panel: CMS + people analytics (own AdminShell, never imports AppShell)
+    (admin)/admin/                 admin panel: monitoring, CMS, system (own AdminShell, never imports AppShell) — §15
+      (overview)/                  "Bosh panel" (/admin) — a route group, so it has its own loading.tsx
       users/[email]/               one person's activity page (R3/S04)
       assessments/                 the attestation: results, item bank (items/[id] editor), settings (R4/S04)
-    dashboard/                     admin monitoring tabs (rendered inside AdminShell from R3/S03)
+      knowledge/                   "Bilim sifati" — is the knowledge base answering operators? (S03 monitoring IA)
+      system/                      "Texnik holat" — Web Vitals (S03 monitoring IA)
+                                   (no app/[locale]/dashboard/: next.config.js redirects its old URLs to /admin, §15)
     login/                         public
     offline/                      Serwist offline fallback
   api/
@@ -81,15 +84,20 @@ components/
   content/                        DocPageTemplate, PageRenderer, SectionLanding, DatabaseTemplate, BattleCardTemplate
   products/                       CertificateGallery/Grid, product lightbox
   providers/                       SessionProvider, ClientNameContext, CertificateLightboxContext, ThemeScript, TelemetryProvider
-  admin/                           CMS forms/editors, AdminShell, UsersTable, AddUserDialog
-    charts/                        StatCard, BarList, ColumnBars, CompareTable, DeltaBadge, ChartCard, ProgressBar (R3/S03–S04) — §15
+  admin/                           CMS forms/editors, AdminShell, UsersTable, AddUserDialog, AdminOverview, AttentionList,
+                                   TopContentTable
+    charts/                        StatCard, BarList, ColumnBars, CompareTable, DeltaBadge, ChartCard, ProgressBar (R3/S03–S04),
+                                   InlineBar, Sparkline (S03 monitoring IA) — §15
+    knowledge/                     the /admin/knowledge cards: KnowledgeGapsCard, NotHelpfulCard, ContentHealthCard +
+                                   ContentHealthTabs, CopilotStatsCard (S03 monitoring IA) — §15
     people/                        PeopleDirectory, PersonCard, PersonCardMenu, PersonAvatar, RoleBadge, PersonHeader,
                                    PersonDetail, PersonTimeline, PersonAccessPanel, RemovePersonDialog,
                                    PeopleActivityList (R3/S04, removal 0022) — §15
     assessments/                   the attestation's admin screens (R4/S04) — §15
   changelog/                       ChangelogEntryCard
   copilot/                        operator copilot UI
-  dashboard/                       monitoring widgets/KPIs (RangePicker, OperatorFilter, QualityPanel…)
+  dashboard/                       the monitoring pages' shared controls (RangePicker, OperatorFilter, QuickActionButton,
+                                   DashboardWidgetError) — mounted only under the admin layout
   home/                            home widgets (ChangelogStrip, ContinueCard, Favourites, Recents); target for DailyTimeline, HomeGreeting
   motion/                          motion primitives — see §14
   onboarding/                      the /company/onboarding scene (RouteMap, R3/S07) — see §14
@@ -117,8 +125,12 @@ lib/
                                    (allow-list), actions/product-image.ts (catalog photos).
                                    people.ts / people-queries.ts (R3/S02) are the 0021 rows and calls;
                                    directory.ts (R3/S04) is the people directory's pure logic (join with
-                                   the overview, summary, URL state, search, sort — client-safe) and
-                                   person-page.ts the person page's (section labels, timeline sentences).
+                                   the overview and onboarding progress, summary, URL state, search, sort —
+                                   client-safe) and person-page.ts the person page's (section labels,
+                                   timeline sentences). S03 monitoring IA: attention.ts is the overview's
+                                   attention list (pure), knowledge.ts the knowledge page's (sections,
+                                   links, gap merge, gaps KPI — pure), monitoring-queries.ts the
+                                   monitoring pages' non-telemetry widget reads (server).
                                    actions/assessment-admin.ts (DI) + actions/assessments.ts ("use server")
                                    are the attestation's admin writes (R4/S04).
   attestation/                     the attestation (R4/S04, docs/ATTESTATION.md §14): types.ts, schemas.ts and
@@ -128,7 +140,8 @@ lib/
   agents/                         server "agents": publish-gate/ (runs before every publish), stale-scan.ts
                                    (daily cron), retention.ts — not copilot code
   notifications/                  publish-gate / stale-content notifications inbox
-  dashboard/                       KPI aggregation + RPC mappers for the admin monitoring pages
+  dashboard/                       RPC mappers and widget reads for the monitoring pages (telemetry-window.ts:
+                                   one call per list), range.ts (?from&to&op, presets, the links' range params)
                                    (people analytics live in lib/admin/people*.ts from R3/S02)
   pwa/                             sw-routes.ts (runtime-cache rules + the sign-out purge list), sw-messages.ts
   motion/                          tokens.ts — durations, easings, spring presets; see §14
@@ -182,24 +195,31 @@ components/  (flat today)   AppShell  Sidebar  TopBar  PageTransition  CommandPa
                             CertificateGallery  CertificateGrid  CertificateCardTrigger  CertificateLightboxContext
                             ClientNameContext  ClientNameInput  ThemeScript  ThemeToggle  LocaleSwitcher
                             TelemetryProvider  FeedbackWidget
-components/admin/           AdminShell  AdminOverview  OverviewRefresh  RelativeTime  NotificationsBell  UsersTable …
+components/admin/           AdminShell  AdminOverview  AttentionList  TopContentTable  OverviewRefresh  RelativeTime
+                            NotificationsBell  UsersTable …
 components/admin/charts/    ChartCard  StatCard  DeltaBadge  BarList  ColumnBars  CompareTable  BarGrow  BarGrowGroup
-                            ProgressBar (R3/S03–S04; pure geometry in lib/admin/charts.ts, overview arithmetic in
-                            lib/admin/overview.ts)
+                            ProgressBar  InlineBar  Sparkline (R3/S03–S04 + S03 monitoring IA; pure geometry in
+                            lib/admin/charts.ts, overview arithmetic in lib/admin/overview.ts)
+components/admin/knowledge/ KnowledgeGapsCard  NotHelpfulCard  ContentHealthCard  ContentHealthTabs (client)
+                            CopilotStatsCard (S03 monitoring IA, /admin/knowledge)
 components/admin/people/    PeopleDirectory  PersonCard  PersonCardMenu  PersonAvatar  RoleBadge  PersonHeader
-                            PersonDetail  PersonTimeline  PersonAccessPanel  RemovePersonDialog  PeopleActivityList
+                            PersonDetail  PersonTimeline  PersonAccessPanel  RemovePersonDialog
                             (R3/S04; PersonCardMenu + RemovePersonDialog: person removal, 0022)
 components/admin/assessments/  AssessmentsSubNav  AssessmentsEmpty  AssessmentResultsTable  ScoreBandBadge
                             AssessmentItemsBank  BankReadiness  AssessmentItemEditor  ItemPublishChecklist
                             AssessmentSettingsForm  RubricOverview (R4/S04)
 lib/attestation/            types  schemas  item-bank (client-safe) · rubrics  scoring  items-draw  config  repository
                             operator-view (server-only) (R4/S04)
+components/dashboard/       RangePicker  RangePickerLink  OperatorFilter  QuickActionButton  DashboardWidgetError
 lib/auth/                   claims  server-session  session-user  sign-out  purge  ban  delete-account  find-auth-users
 app/[locale]/(admin)/admin/users/   page.tsx (directory) + loading.tsx, [email]/page.tsx (person) + loading.tsx (R3/S04)
 app/[locale]/(admin)/admin/assessments/   layout.tsx (heading + sub-nav) + loading.tsx, page.tsx (results),
                             items/page.tsx (bank), items/[id]/page.tsx (editor; `new` creates), settings/page.tsx (R4/S04)
 app/[locale]/(admin)/admin/(overview)/   page.tsx + loading.tsx of /admin — a route group, so the overview has its
                             own skeleton while ../loading.tsx stays the CMS pages' generic one (R3/S03)
+app/[locale]/(admin)/admin/knowledge/   page.tsx + loading.tsx;   app/[locale]/(admin)/admin/system/   page.tsx
+                            (S03 monitoring IA; the system page uses ../loading.tsx)
+lib/admin/                  … attention  knowledge  monitoring-queries (S03 monitoring IA) — see §2
 components/ui/              Dialog  ErrorBoundary  PinButton  RecentRecorder  Skeleton  SubmitButton  Toaster
                             WidgetBoundary  WidgetFallback  toast-store.ts
 components/providers/       SessionProvider  OfflineBanner  WebVitalsReporter
@@ -238,7 +258,7 @@ context providers/consumers.
   `fs`, or `lib/telemetry/aggregate.ts`.
 - A Server Component must never import framer-motion, hooks, or anything from `components/providers`.
 - Do not call `cookies()` / `headers()` in `app/[locale]/(app)/layout.tsx` or any shared operator layout — it
-  forces every operator page dynamic and kills the router cache. (Admin-panel pages — `/admin/**`, `/dashboard/**`
+  forces every operator page dynamic and kills the router cache. (Admin-panel pages — `/admin/**`
   — are session-scoped and dynamic by nature; reading the session there is expected.) Auth is enforced in `middleware.ts`;
   user display data comes from `SessionProvider` (client, from cookie session, no network).
 - Heavy or rarely-used client modules (CommandPalette, Lightbox, CallModeOverlay, admin editors)
@@ -358,14 +378,16 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
 
 ### Role model v2 (R3/S01, migration 0020)
 
-| Role | Who | Operator app (`/`, `(app)/**`) | Admin panel (`/admin/**`, `/dashboard/**`) | Telemetry |
+| Role | Who | Operator app (`/`, `(app)/**`) | Admin panel (`/admin/**`; `/dashboard/**` only redirects) | Telemetry |
 |---|---|---|---|---|
 | `admin` | the owner | yes — preview only | **yes, everything** | never recorded |
 | `manager` | sales manager | yes (same UI as operator for now) | **no** → redirected to `/` | recorded |
 | `operator` | operator | yes | **no** → redirected to `/` | recorded |
 
 - `homeForRole`: `admin` → `/admin`, `manager` / `operator` → `/`. Admin areas are `ADMIN_AREAS =
-  ["/admin", "/dashboard"]` (`lib/auth/claims.ts`); `isAdminArea()` is the only path check.
+  ["/admin", "/dashboard"]` (`lib/auth/claims.ts`); `isAdminArea()` is the only path check. `/dashboard` has no
+  pages since the S03 monitoring IA (next.config.js redirects its old URLs to `/admin`, §15) and stays an admin area
+  as defence in depth.
 - Admin rows in `allowed_users` are managed **only in the Supabase SQL editor** (the guard trigger raises
   `WT462` for any write carrying a JWT — a session or the service-role key — that creates, promotes,
   demotes, deactivates, reactivates, deletes or re-addresses (changes the `email` of) an `admin` row;
@@ -396,8 +418,9 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   the locally verified JWT and keeps non-admins out of the admin areas. (3) RLS decides rows, through
   `private.is_member()` / `private.is_admin()` only — never inline `auth.jwt() -> 'app_metadata'` in a
   new policy. (4) Server code re-checks: `getServerSession()` in Route Handlers,
-  `requireAdminSession()` first in every admin Server Action, and both admin layouts (`/admin`, `/dashboard`) plus
-  every `/dashboard` page refuse a non-admin session (`requireAdminPage`, pinned by
+  `requireAdminSession()` first in every admin Server Action, and the admin layout plus every monitoring page
+  (`/admin`, `/admin/knowledge`, `/admin/system`) and both people pages refuse a non-admin session (`requireAdminPage`,
+  before any read, pinned by
   `tests/unit/auth/admin-gates.test.ts`). A new data-returning SQL function is SECURITY INVOKER and refuses a
   non-admin itself (`WT403`), or is granted to `service_role` only.
 - **Middleware matcher.** It may exclude only real static files: the three `public/` folders
@@ -607,15 +630,66 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   empty/onboarding states. `/company/onboarding` reads 160 kB since R3/S07 (it was at the 180 kB limit): keep
   its scroll machinery in the lazy `RouteTrail`, and keep `CountUp` (framer's `animate()`) off that route.
 
-## 15. Admin panel UI (R3/S03–S04)
+## 15. Admin panel UI (R3/S03–S04, S03 monitoring IA)
 
-- **One shell.** `/admin/**` and `/dashboard/**` both render inside `components/admin/AdminShell.tsx`. Its left
-  nav comes from the grouped config in `lib/admin/nav.ts` (groups: Monitoring · Content · System) — a new
-  admin page is added there once, and `tests/unit/admin/nav.test.ts` checks it against the pages on disk and
-  both message files (labels under `admin.nav`). The old Dashboard ↔ Admin switch, `ManagerMonitoringHeader` and
-  `DashboardTabs` are gone; each `/dashboard/*` page renders its own `PageHeader`. The header has "Operator view"
-  (`/`). `AdminShell` is mounted by both layouts, so what it reads must be in both client lists
-  (`admin.shell`, `admin.nav` in `DASHBOARD_CLIENT_NAMESPACES`; the client-messages test checks both).
+- **One shell.** Every admin page lives under `/admin/**` and renders inside `components/admin/AdminShell.tsx`,
+  mounted by the one admin layout (`app/[locale]/(admin)/admin/layout.tsx`; its client messages are
+  `ADMIN_CLIENT_NAMESPACES` — there is no second list). The left nav comes from the grouped config in
+  `lib/admin/nav.ts` — a new admin page is added there once, and `tests/unit/admin/nav.test.ts` checks it against
+  the pages on disk and both message files (labels under `admin.nav`). The header has "Operator view" (`/`).
+- **Information architecture — one question per page.** Monitoring, in this order: **Bosh panel** `/admin` ("how is
+  my team doing and what needs me now?"), **Xodimlar** `/admin/users`, **Attestatsiya** `/admin/assessments` ("how did
+  each person do on the attestation?", R4/S04 — below), **Bilim sifati** `/admin/knowledge` ("is the knowledge base
+  answering the operators?"). `tests/unit/admin/nav.test.ts` pins these four. Content: the CMS sections. System: history, notifications, trash, **Texnik holat**
+  `/admin/system` (Web Vitals — an engineering number, never on a monitoring page). A number lives on one page only;
+  no KPI grid is repeated across pages.
+- **Retired `/dashboard`.** The old tabs are 307 redirects in `next.config.js` `redirects()` (unprefixed, `/uz` and
+  `/ru` forms, one hop, query passed through): `/dashboard` → `/admin`, `/dashboard/content` → `/admin/knowledge#health`,
+  `/dashboard/quality` → `#gaps`, `/dashboard/copilot` → `#copilot`. They run before middleware, so they answer
+  without a session — safe because every destination is a gated `/admin` URL and a redirect carries no data;
+  `/dashboard` stays in `ADMIN_AREAS` anyway. `tests/unit/security/monitoring-redirects.test.ts` loads the real config
+  and checks locales, destinations (admin areas, never back under `/dashboard`) and the `#section` ids against
+  `KNOWLEDGE_SECTIONS`. Never add a page under `app/[locale]/dashboard/` again.
+- **Monitoring page rules.** Each page calls `requireAdminPage(locale)` itself, before its one `Promise.all` of reads
+  (`tests/unit/auth/admin-gates.test.ts`), and every widget fails alone (below). At most one range picker per page:
+  `RangePicker` offers 7 / 14 / 30 days (`RANGE_PRESET_DAYS`); the monitoring pages default to
+  `MONITORING_RANGE_DAYS` (14, the directory's window) via `parseDashboardRange(params, { defaultDays })`. Links
+  between pages carry the range with `rangeSearchParams` (clean URL when it is the target's default), so a click
+  never silently changes the window. One `ChartCard` anatomy everywhere: icon, title (`<h2>`), one-line
+  description, content, optional one "all" link in the `action` slot; `id` makes a card a link target.
+- **Bosh panel** (`AdminOverview`): header (title, description, `RangePicker`, `OverviewRefresh`); four `StatCard`s
+  against the previous equal window — active people (x of y), active time (caption: average per active person),
+  materials viewed (caption: copies), knowledge gaps (zero-result searches + "not helpful" marks + Copilot no-hit
+  requests, `gapKpi`; a rise is bad news, so its `DeltaBadge` has `better="down"`; links to `/admin/knowledge#gaps`);
+  the attention list; **Jamoa**, one sortable `CompareTable` (person with avatar and `RoleBadge` → person page,
+  active time with a green `InlineBar`, active days, views · copies with a blue `InlineBar`, last seen, a daily
+  `Sparkline`); then the top five materials (`TopContentTable` compact, "all" → `#usage`) beside the per-section
+  content state (published / drafts, each row → its CMS list).
+- **Attention list** (`lib/admin/attention.ts` → `components/admin/AttentionList.tsx`, a Server Component).
+  `buildAttentionItems(input)` returns `AttentionItem`s — a discriminated union by `kind` (`publish_blocked`,
+  `inactive_person`, `zero_result_top`, `copilot_unanswered`, `not_helpful`, `drafts_waiting`, `stale_content`) with
+  `severity` high | medium | low, a `count`, the sentence's `values` and exactly one `href`. Thresholds are
+  `ATTENTION_THRESHOLDS`; "inactive" is ≥ 3 working days without an event (Mon–Fri, Tashkent dates, neither the last
+  active day nor today counted) → medium, ≥ 5 → high, counted from `addedAt` for someone never seen; the admin and
+  deactivated accounts are never items. Ranking: severity, then count, then `KIND_ORDER`, then key. Every input
+  source is `null` when its read failed: it adds no item — never a zero read as "fine" — and
+  `attentionSkippedSources` makes the list say it is incomplete instead of showing the positive empty state. The
+  component knows no kind: it renders `pages.admin.overview.attention.items.<kind>.{text,action}` with the item's
+  values, the severity as a dot (`status-outdated` / `-warning` / `-ok`) **and** a word, six items and the rest in a
+  native `<details>`. A new kind (S07: `assessment_low`, `assessment_needs_review`, `assessment_eval_failed`) is a
+  union member, a `KIND_ORDER` entry, thresholds, an input field with its detector, and the two messages in both
+  files — `tests/unit/admin/attention.test.ts` formats every kind's sentence in both locales.
+- **Bilim sifati** (`/admin/knowledge`): `RangePicker` + an optional person filter (`OperatorFilter`, people from
+  `fetchPeopleLookup` in the page's `Promise.all`). Sections, each a `ChartCard` with its own error / empty state and an
+  `id` from `KNOWLEDGE_SECTIONS`: `#gaps` "Topilmagan savollar" — zero-result searches and Copilot's unanswered
+  questions merged on `normalizeSearchText` (`mergeKnowledgeGaps`), source badges (Qidiruv / Copilot) with counts,
+  one action: the FAQ form pre-filled with the question (`faqPrefillHref`, `prefetch={false}`); one source failing
+  still shows the other and says so. `#feedback` "Foydasiz deb belgilangan" (→ `resolveContentAdminHref`).
+  `#health` "Kontent salomatligi" — drafts / stale / missing RU as one `ContentHealthTabs` segmented control (a
+  `tablist` over server-rendered panels, `?health=` written with `history.replaceState`, quick actions through the
+  publish gate). `#usage` the full `TopContentTable`. `#copilot` four stats (questions, answered rate, no-hit rate,
+  median latency) and a footnote (errors, p95, rate-limited). The person filter applies to searches and feedback;
+  Copilot, content health and usage have no per-person view and their cards say they cover everyone.
 - **People.** `/admin/users` ("Xodimlar") is the people directory: one server read of `listAdminUsers()` plus
   `admin_people_overview` for the last 14 Tashkent days, joined by email (`buildDirectory`), then everything —
   role tabs (a real `tablist`, arrow keys, counts follow the search), search (`normalizeSearchText`: case,
@@ -637,7 +711,10 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   `personPath(email)` (encodeURIComponent) and parsed back by `parsePersonParam()` (zod `userEmailSchema`) →
   `notFound()` for anything not in `allowed_users`. The list is driven by `allowed_users`, so a newly added person
   appears without any other change: `AddUserDialog` calls `router.refresh()` after `addUser`, and the (dynamic) page
-  re-reads both sources — there is no cache or `revalidatePath` involved.
+  re-reads its sources — there is no cache or `revalidatePath` involved. Onboarding progress (S03 monitoring IA, it
+  was the retired quality tab's table) comes from one `fetchOnboardingProgress(null)` read in the same
+  `Promise.all`, joined by email in `buildDirectory`: a chip on each operator's / manager's card and a column in the
+  table view; the admin (no checklist) and a failed read show none — never 0 of N.
 - **Person page.** `/admin/users/[email]` reads the allow-list row and every widget's RPC in one `Promise.all`
   (`fetchPerson*` in `lib/admin/people-queries.ts`: 0021 functions plus `dashboard_hourly` / `_most_viewed` /
   `_zero_result_searches` with `p_operator`); no row → `notFound()`, an admin row → no numbers (telemetry is never
@@ -645,18 +722,25 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
   `PersonAccessPanel` has a danger zone ("Remove employee", not on the caller's own row); after a removal it
   `router.replace("/admin/users")`s and `router.refresh()`es — the page itself is a 404 now. Timeline lines are
   `pages.admin.people.events.<type>` sentences built by `buildTimeline`: entity titles from the content bundle, meta
-  only through the zod-validated known keys. Wherever a gmail is shown and that person is on the allow-list it links
-  here (overview compare table, `PeopleActivityList` on `/dashboard`, the table view, the activity feed's actors).
+  only through the zod-validated known keys. The hourly profile ("Qaysi soatlarda ishlaydi", `fetchPersonHourly`)
+  replaced the retired team-wide plan-vs-actual table. Wherever a gmail is shown and that person is on the allow-list
+  it links here (the overview's team table, the table view, the activity feed's actors).
 - **Charts** are server-rendered divs/SVG from `components/admin/charts/` — no chart dependency. Bar length is
   an inline `style` percentage (computed size, allowed by §6); the only motion is a one-time `scaleX`/`scaleY`
   grow via `m.*` (`BarGrow`), driven per chart by one `BarGrowGroup` on `useRevealPhase`: the server HTML, reduced
   motion and a chart already on screen at mount show the final bars; a chart below the fold grows once when it
   scrolls in. `CompareTable` is the one client chart: a function cannot cross the Server → Client boundary, so
-  each cell arrives rendered (`content`) with its `sortValue`. Fills use `bg-chart-green` (time/activity) and
-  `bg-chart-blue` (content usage) on `bg-chart-track`; values sit next to the bar as text in
-  `text-primary-dark tabular-nums` — colour never carries the number alone.
+  each cell arrives rendered (`content`) with its `sortValue`; a column's `hint` is a second header line (unit or
+  window). `InlineBar` (a number with a short bar in a table cell) and `Sparkline` (pure server SVG from
+  `sparklineGeometry`, `role="img"` with the day values in its label) are static — a re-sorting table must not
+  regrow its bars. Fills use `bg-chart-green` (time/activity) and `bg-chart-blue` (content usage) on
+  `bg-chart-track`; values sit next to the bar as text in `text-primary-dark tabular-nums` — colour never carries
+  the number alone. `DeltaBadge`'s number is `text-primary-dark` too; only its arrow is tinted (good / bad news).
 - **Every widget fails alone**: data arrives as `WidgetData<T>`; a failed call renders `DashboardWidgetError`
-  in that widget's slot, an empty result renders `EmptyState` — never a silent zero.
+  in that widget's slot, an empty result renders `EmptyState` — never a silent zero. A read that throws (a cached
+  loader, a count helper) is wrapped with `settleWidget` (`lib/dashboard/telemetry-window.ts`,
+  `lib/admin/monitoring-queries.ts`), so it cannot take the page down; one list per call (`fetchZeroResultSearches`,
+  `fetchNotHelpful`, `fetchWebVitals`, `fetchKpiTotals`), so lists fail separately.
 - Numbers, dates and durations are formatted with the active locale (`Intl.*`, `lib/dashboard/format.ts`);
   relative times ("2 soat oldin") render after mount via `useNow()` (§3 hydration rules). Never render
   `Intl` output of `uz-UZ` in a client component before mount: Node's ICU and the browser format it differently,

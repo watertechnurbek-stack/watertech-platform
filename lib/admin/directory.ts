@@ -2,9 +2,11 @@ import { z } from "zod";
 import { normalizeSearchText } from "@/lib/search/normalize";
 import { USER_ROLES, type AdminUser } from "@/lib/admin/users";
 import { displayName, type PersonOverview } from "@/lib/admin/people";
+import type { OnboardingProgressRow } from "@/lib/dashboard/quality";
 
 // The people directory's own logic (/admin/users, R3/S04): joining the
-// allow-list with the 0021 overview, the summary strip, and the filter / sort /
+// allow-list with the 0021 overview and the onboarding checklist progress
+// (S03 monitoring IA), the summary strip, and the filter / sort /
 // URL state of the cards. Pure and client-safe — PeopleDirectory runs all of it
 // in the browser over the full list — so tests/unit/admin/directory.test.ts pins
 // it without rendering anything. Nothing here imports overview.ts, which drags
@@ -42,6 +44,13 @@ export function dayAt(windowStart: string, index: number): string {
   return addDays(windowStart, index);
 }
 
+/** How far a person is through the onboarding checklist — a running total,
+ * not a window: `completed` of its `total` current items. */
+export interface OnboardingProgress {
+  completed: number;
+  total: number;
+}
+
 /** One card / table row. An AdminUser — so the table takes the same array —
  * plus the window's stats. Plain data: it crosses the Server → Client boundary. */
 export interface DirectoryPerson extends AdminUser {
@@ -51,6 +60,9 @@ export interface DirectoryPerson extends AdminUser {
   /** Any event in the newest RECENT_ACTIVITY_DAYS days of the window; null
    * when stats is null. */
   activeRecently: boolean | null;
+  /** null for the admin (no checklist), when the progress could not be read,
+   * or for a row the progress read did not cover — never a made-up 0. */
+  onboarding: OnboardingProgress | null;
 }
 
 /** Operators and sales managers — the roles telemetry records (CLAUDE.md §9). */
@@ -59,26 +71,34 @@ export function isTracked(person: Pick<AdminUser, "role">): boolean {
 }
 
 /**
- * The allow-list rows joined with the overview, by email. The allow-list drives
- * the list — a person added a second ago is a row before they have a single
- * event — and the overview only adds numbers: a row it lacks (or every row,
- * when its read failed: `overview` null) gets `stats: null`, never zeros that
- * read as idleness. The overview's newest event wins over the allow-list's
- * own "last activity" (both are the newest telemetry event; the overview's is
- * the one the person page shows too).
+ * The allow-list rows joined with the overview and the onboarding progress, by
+ * email. The allow-list drives the list — a person added a second ago is a row
+ * before they have a single event — and the other two only add numbers: a row
+ * the overview lacks (or every row, when its read failed: `overview` null)
+ * gets `stats: null`, one the progress lacks (`onboarding` null when that read
+ * failed) `onboarding: null` — never zeros that read as idleness. The
+ * overview's newest event wins over the allow-list's own "last activity"
+ * (both are the newest telemetry event; the overview's is the one the person
+ * page shows too).
  */
 export function buildDirectory(
   users: readonly AdminUser[],
-  overview: readonly PersonOverview[] | null
+  overview: readonly PersonOverview[] | null,
+  onboarding: readonly OnboardingProgressRow[] | null
 ): DirectoryPerson[] {
   const byEmail = new Map<string, PersonOverview>((overview ?? []).map((row) => [row.email, row]));
+  const progressByEmail = new Map<string, OnboardingProgress>(
+    (onboarding ?? []).map((row) => [row.email, { completed: row.completed, total: row.total }])
+  );
 
   return users.map((user) => {
+    const progress = (user.role === "admin" ? undefined : progressByEmail.get(user.email)) ?? null;
     const row = user.role === "admin" ? undefined : byEmail.get(user.email);
-    if (!row) return { ...user, stats: null, activeRecently: null };
+    if (!row) return { ...user, stats: null, activeRecently: null, onboarding: progress };
 
     return {
       ...user,
+      onboarding: progress,
       lastActivityAt: row.lastSeenAt ?? user.lastActivityAt,
       stats: {
         activeMs: row.activeMs,

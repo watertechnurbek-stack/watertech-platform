@@ -1,6 +1,7 @@
 import type { Database } from "@/lib/supabase/database.types";
 
-// /dashboard/copilot: rows of the two 0019 functions turned into the shapes the
+// /admin/knowledge (the Copilot card and the Copilot half of the unanswered
+// questions): rows of the two 0019 functions turned into the shapes the
 // components take, plus the formatting helpers they share. Pure — the calls
 // themselves are in lib/dashboard/copilot-window.ts.
 //
@@ -71,6 +72,14 @@ export function toUnansweredQuestions(rows: CopilotUnansweredRow[]): UnansweredQ
     operatorCount: row.operator_count,
     lastAskedIso: new Date(row.last_asked_at).toISOString(),
   }));
+}
+
+/** Share, in [0, 1], of the requests the copilot handled (total minus the
+ * rate-limited ones — the same base as noHitsRate and errorRate) that it
+ * answered from the knowledge base; null when it handled none. */
+export function copilotAnsweredRate(stats: Pick<CopilotStatsSummary, "total" | "ok" | "rateLimited">): number | null {
+  const handled = stats.total - stats.rateLimited;
+  return handled > 0 ? stats.ok / handled : null;
 }
 
 /** "12.5%" — one decimal, none when it is a whole number; "—" when there was

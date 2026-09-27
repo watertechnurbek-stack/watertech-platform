@@ -268,6 +268,14 @@
       "title": "Javobsiz savollar yo'q",
       "reason": "Tanlangan davrda copilot barcha savollarga javob topgan"
     },
+    "attentionClear": {
+      "title": "Hammasi joyida",
+      "reason": "Hozircha e'tiboringizni talab qiladigan narsa yo'q."
+    },
+    "knowledgeNoGaps": {
+      "title": "Topilmagan savol yo'q",
+      "reason": "Tanlangan davrda har bir qidiruv va Copilot savoli javob topgan."
+    },
     "activityNone": {
       "title": "Faoliyat topilmadi",
       "reason": "Tanlangan filtrlarga mos yozuv yo'q"
@@ -480,109 +488,24 @@
     }
   },
   "dashboard": {
-    "onboardingProgress": {
-      "heading": "Onboarding jarayoni",
-      "operator": "Operator",
-      "progress": "Bajarilgan",
-      "lastUpdate": "Oxirgi yangilanish",
-      "never": "Boshlanmagan"
-    },
-    "headings": {
-      "activity": {
-        "title": "Faollik tafsilotlari",
-        "description": "Har bir operator faolligi, soatlar bo'yicha reja va natijasiz qidiruvlar."
-      },
-      "content": {
-        "title": "Kontent sog'ligi",
-        "description": "Qoralamalar, eskirgan yozuvlar va rus tilidagi tarjima bo'shliqlari."
-      },
-      "quality": {
-        "title": "Sifat",
-        "description": "Foydasiz deb belgilangan javoblar, natijasiz qidiruvlar va onboarding jarayoni."
-      },
-      "copilot": {
-        "title": "Copilot",
-        "description": "Copilot savollari, javob tezligi va javobsiz qolgan savollar."
-      }
-    },
-    "metadata": {
-      "activity": "Admin panel — Faollik tafsilotlari",
-      "content": "Admin panel — Kontent sog'ligi",
-      "quality": "Admin panel — Sifat",
-      "copilot": "Admin panel — Copilot"
-    },
     "duration": {
       "minutes": "{minutes} daq",
       "hoursMinutes": "{hours} soat {minutes} daq"
     },
     "ranges": {
-      "today": "Bugun",
       "7d": "7 kun",
-      "30d": "30 kun",
-      "month": "Oy boshidan"
+      "14d": "14 kun",
+      "30d": "30 kun"
     },
     "operatorFilter": {
       "all": "Barcha xodimlar",
-      "apply": "Qo'llash"
-    },
-    "kpi": {
-      "activeOperators": "Faol operatorlar",
-      "totalTime": "Jami vaqt",
-      "pendingDrafts": "Nashr kutayotgan qoralamalar",
-      "zeroResults": "Natijasiz qidiruvlar"
-    },
-    "activity": {
-      "hourlyHeading": "Soatlik reja vs fakt",
-      "hour": "Soat",
-      "plan": "Reja",
-      "actual": "Fakt (hodisalar soni)",
-      "zeroHeading": "Nol-natijali qidiruvlar",
-      "query": "So'rov",
-      "times": "Necha marta",
-      "webVitals": "Web Vitals (p50 / p75)",
-      "metric": "Metrika",
-      "samples": "Namunalar"
-    },
-    "content": {
-      "all": "Barchasi →",
-      "drafts": "Nashr kutayotgan qoralamalar",
-      "stale": "Eskirgan kontent (90+ kun)",
-      "missingRu": "Ruscha tarjimasi yo'q",
-      "publish": "Nashr qilish",
-      "publishing": "Nashr qilinmoqda…",
-      "markFresh": "Yangilangan deb belgilash",
-      "marking": "Belgilanmoqda…",
-      "translate": "Tarjima qilish"
-    },
-    "quality": {
-      "notHelpful": "\"Foydali emas\" deb belgilangan sahifalar",
-      "zeroHeading": "Nol-natijali qidiruvlar",
-      "lastSeen": "Oxirgi marta: {date}",
-      "createFaq": "FAQ yaratish",
-      "mostViewed": "Eng ko'p ko'rilgan kontent"
+      "apply": "Qo'llash",
+      "label": "Xodim bo'yicha filtr"
     },
     "copilot": {
-      "kpi": {
-        "requests": "Copilot so'rovlari",
-        "noHitsRate": "Javobsiz so'rovlar ulushi",
-        "errorRate": "Xatolar ulushi",
-        "latency": "Javob vaqti (p50 / p95)"
-      },
       "latency": {
-        "ms": "{value} ms",
-        "seconds": "{value} s"
-      },
-      "unanswered": {
-        "heading": "Copilot javob topa olmagan savollar",
-        "note": "Savol matni {days} kundan keyin o'chiriladi, shuning uchun eski davrdagi savollar bu yerda ko'rinmaydi.",
-        "columns": {
-          "question": "Savol",
-          "count": "Necha marta",
-          "operators": "Operatorlar",
-          "lastAsked": "Oxirgi marta",
-          "action": "Amal"
-        },
-        "createFaq": "FAQ yaratish"
+        "ms": "{value, number} ms",
+        "seconds": "{value, number} s"
       }
     }
   },
@@ -826,12 +749,12 @@
           "onboarding": "Onboarding",
           "actions": "Amallar"
         },
+        "onboardingValue": "{completed} / {total}",
         "you": "Siz",
         "roleSelectLabel": "{email} roli",
         "selfLocked": "O'z rolingiz va holatingizni bu yerda o'zgartirib bo'lmaydi",
         "adminLocked": "Admin faqat SQL Editor orqali boshqariladi",
         "noActivity": "Faollik yo'q",
-        "onboardingLink": "Onboarding holati",
         "deactivate": "To'xtatish",
         "activate": "Tiklash",
         "deactivateTitle": "Kirishni to'xtatish",
@@ -906,6 +829,8 @@
           "neverActive": "hali yo'q",
           "windowActive": "{days} kunda faol: {time}",
           "noTelemetry": "Telemetriya yozilmaydi",
+          "onboarding": "Onboarding {completed}/{total}",
+          "onboardingDone": "Onboarding tugagan",
           "statsUnavailable": "Statistika yuklanmadi",
           "dayTitle": "{day}: {minutes} daq",
           "seriesLabel": "{name} — oxirgi {days} kunda kunlik faol daqiqalar",
@@ -1036,10 +961,6 @@
             "button": "Xodimni o'chirish"
           }
         },
-        "activityList": {
-          "title": "Xodimlar faolligi",
-          "all": "Barcha xodimlar"
-        },
         "events": {
           "page_enter": "Sahifani ochdi: {path}",
           "script_select": "Skript ochdi: {label}",
@@ -1072,54 +993,96 @@
         "statusPublished": "Nashr etilgan"
       },
       "overview": {
-        "title": "Umumiy ko'rinish",
-        "description": "Operator va menejerlar faolligi, kontentdan foydalanish va kontent holati — bir sahifada.",
+        "title": "Bosh panel",
+        "description": "Jamoangiz qanday ishlayapti va hozir nimaga e'tibor berish kerak — bir sahifada.",
         "updatedAt": "Yangilandi {time}",
         "refresh": "Yangilash",
-        "percent": "{value}%",
-        "entries": "{count} ta yozuv",
         "drafts": "{count} qoralama",
         "kpi": {
           "activePeople": "Faol xodimlar",
           "activePeopleCaption": "{total} xodimdan {active} tasi",
           "activeTime": "Umumiy faol vaqt",
+          "perActive": "O'rtacha {value}",
+          "noActive": "Davrda faol xodim yo'q",
           "views": "Ko'rilgan materiallar",
-          "copies": "Nusxalashlar",
-          "onboarding": "O'rtacha onboarding",
-          "onboardingCaption": "Davr ichida belgilangan bandlar bo'yicha",
-          "perActive": "Faol xodimga o'rtacha {value}",
-          "noActive": "Davrda faol xodim yo'q"
+          "viewsCaption": "Nusxalashlar: {copies}",
+          "gaps": "Bilimdagi bo'shliqlar",
+          "gapsCaption": "Qidiruv {searches} · Baho {feedback} · Copilot {copilot}"
         },
-        "compare": {
-          "title": "Xodimlarni solishtirish",
-          "description": "Operator va menejerlar tanlangan davr bo'yicha. Qatorni bosing — xodim sahifasi ochiladi.",
+        "attention": {
+          "title": "Diqqat talab qiladi",
+          "description": "Hozir qaroringizni kutayotgan narsalar — eng muhimi birinchi.",
+          "severity": {
+            "high": "Shoshilinch",
+            "medium": "Muhim",
+            "low": "Eslatma"
+          },
+          "showAll": "Hammasi ({count})",
+          "incomplete": "Ba'zi tekshiruvlar bajarilmadi ({sources}) — ro'yxat to'liq bo'lmasligi mumkin. Sahifani yangilang.",
+          "sources": {
+            "people": "xodimlar faolligi",
+            "content": "kontent holati",
+            "notifications": "bildirishnomalar",
+            "searches": "qidiruvlar",
+            "copilot": "Copilot",
+            "feedback": "baholar"
+          },
+          "items": {
+            "publish_blocked": {
+              "text": "Nashr qorovuli {count} ta nashrni to'xtatdi — bu kontent operatorlarga ko'rinmayapti.",
+              "action": "Bildirishnomalar"
+            },
+            "inactive_person": {
+              "text": "{never, select, yes {{name} qo'shilganiga {days} ish kuni bo'ldi, lekin hali bir marta ham kirmagan.} other {{name} {days} ish kunidan beri faol emas.}}",
+              "action": "Profilni ochish"
+            },
+            "zero_result_top": {
+              "text": "“{query}” {count} marta qidirildi, lekin hech narsa topilmadi.",
+              "action": "FAQ yaratish"
+            },
+            "copilot_unanswered": {
+              "text": "Copilot {count} ta savolga bilim bazasidan javob topa olmadi.",
+              "action": "Savollarni ko'rish"
+            },
+            "not_helpful": {
+              "text": "Operatorlar {pages} ta sahifani jami {count} marta “Foydali emas” deb belgilashdi.",
+              "action": "Sahifalarni ko'rish"
+            },
+            "drafts_waiting": {
+              "text": "{count} ta qoralama nashrni kutmoqda.",
+              "action": "Qoralamalar"
+            },
+            "stale_content": {
+              "text": "{count} ta nashr etilgan yozuv {days} kundan ortiq yangilanmagan.",
+              "action": "Eskirganlar"
+            }
+          }
+        },
+        "team": {
+          "title": "Jamoa",
+          "description": "Operator va menejerlar tanlangan davrda. Qatorni bosing — xodim sahifasi ochiladi.",
+          "all": "Xodimlar",
           "columns": {
             "person": "Xodim",
             "activeTime": "Faol vaqt",
             "activeDays": "Faol kunlar",
-            "views": "Ko'rishlar",
-            "copies": "Nusxalar",
-            "searches": "Qidiruv (topilmadi)",
-            "onboarding": "Onboarding",
-            "lastSeen": "Oxirgi faollik"
+            "activeDaysHint": "{days} kundan",
+            "usage": "Ko'rish · nusxa",
+            "usageHint": "materiallar",
+            "lastSeen": "Oxirgi faollik",
+            "trend": "Kunlik faollik",
+            "trendHint": "daqiqa, har kuni"
           },
-          "searchesValue": "{searches} ({zero})",
+          "usageValue": "{views} · {copies}",
           "inactive": "Faol emas",
-          "never": "Hali yo'q"
-        },
-        "activeTimeChart": {
-          "title": "Faol vaqt — xodimlar bo'yicha",
-          "description": "Sahifalarda o'tkazilgan vaqt, bo'sh turish hisobga olinmagan.",
-          "sublabel": "{days} kun faol"
-        },
-        "usageChart": {
-          "title": "Kontentdan foydalanish — xodimlar bo'yicha",
-          "description": "Ko'rishlar va nusxalar yig'indisi.",
-          "sublabel": "{views} ko'rish · {copies} nusxa"
+          "never": "Hali yo'q",
+          "trendLabel": "{name} — {days} kun, kunlik faol daqiqalar: {values}"
         },
         "topContent": {
           "title": "Eng ko'p ishlatilgan materiallar",
           "description": "Operator va menejerlar eng ko'p ochgan va nusxalagan kontent.",
+          "descriptionShort": "Eng ko'p ochilgan va nusxalangan beshta material.",
+          "all": "Hammasi",
           "columns": {
             "rank": "#",
             "material": "Material",
@@ -1137,15 +1100,11 @@
             "package_view": "Paket"
           }
         },
-        "daily": {
-          "title": "Kunlik faollik — har bir xodim",
-          "description": "Har kuni faol bo'lgan daqiqalar.",
-          "seriesLabel": "{name} — kunlik faol daqiqalar",
-          "pointTitle": "{date}: {minutes} daq"
-        },
         "contentStatus": {
           "title": "Kontent holati",
-          "description": "Bo'limlar bo'yicha yozuvlar va nashr kutayotgan qoralamalar."
+          "description": "Bo'limlar bo'yicha nashr etilgan yozuvlar va qoralamalar.",
+          "published": "{count} nashr",
+          "all": "Kontent salomatligi"
         },
         "empty": {
           "noPeople": {
@@ -1156,6 +1115,87 @@
           "noEvents": {
             "title": "Tanlangan davrda faollik yo'q",
             "reason": "Boshqa davrni tanlang yoki xodimlar ish boshlaganidan keyin qayting."
+          }
+        }
+      },
+      "knowledge": {
+        "title": "Bilim sifati",
+        "description": "Bilim bazasi operatorlar savollariga javob beryaptimi — topilmagan savollar, baholar, kontent salomatligi va Copilot.",
+        "filterNote": "Filtr: {name}. Qidiruv va baholar shu xodim bo'yicha; Copilot, kontent salomatligi va eng ko'p ishlatilganlar — barcha xodimlar bo'yicha.",
+        "gaps": {
+          "title": "Topilmagan savollar",
+          "description": "Natija bermagan qidiruvlar va Copilot javob topa olmagan savollar — bitta ro'yxatda, eng ko'p so'ralgani birinchi.",
+          "sources": {
+            "search": "Qidiruv · {count}",
+            "copilot": "Copilot · {count}"
+          },
+          "people": "{count} xodim so'ragan",
+          "lastSeen": "oxirgi marta {date}",
+          "times": "{count} marta",
+          "createFaq": "FAQ yaratish",
+          "showAll": "Hammasi ({count})",
+          "partial": {
+            "search": "Qidiruvlarni yuklab bo'lmadi — ro'yxatda faqat Copilot savollari.",
+            "copilot": "Copilot savollarini yuklab bo'lmadi — ro'yxatda faqat qidiruvlar."
+          },
+          "filteredNote": "Copilot savollari barcha xodimlar bo'yicha: kim so'ragani saqlanmaydi.",
+          "retention": "Copilot savolining matni {days} kundan keyin o'chiriladi — eski davrdagi savollar bu yerda ko'rinmaydi."
+        },
+        "feedback": {
+          "title": "Foydasiz deb belgilangan",
+          "description": "Operatorlar “Foydali emas” deb belgilagan sahifalar, eng ko'pi birinchi.",
+          "marks": "{count} ta belgi"
+        },
+        "health": {
+          "title": "Kontent salomatligi",
+          "description": "Nashr kutayotgan qoralamalar, uzoq yangilanmagan va ruscha matni yo'q yozuvlar.",
+          "segmentsLabel": "Kontent salomatligi ro'yxatlari",
+          "segments": {
+            "drafts": "Qoralamalar",
+            "stale": "Eskirgan ({days}+ kun)",
+            "missingRu": "Ruscha yo'q"
+          },
+          "rowMeta": "{section} · {date}",
+          "more": "Yana {count} ta — bu yerda {shown} tasi ko'rsatilgan.",
+          "publish": "Nashr qilish",
+          "publishing": "Nashr qilinmoqda…",
+          "markFresh": "Yangilangan deb belgilash",
+          "marking": "Belgilanmoqda…",
+          "translate": "Tarjima qilish"
+        },
+        "usage": {
+          "title": "Eng ko'p ishlatilgan materiallar",
+          "description": "Operator va menejerlar eng ko'p ochgan va nusxalagan kontent.",
+          "filteredNote": "Barcha xodimlar bo'yicha."
+        },
+        "copilot": {
+          "title": "Copilot",
+          "description": "Tanlangan davrdagi savollar va javoblar.",
+          "filteredNote": "Barcha xodimlar bo'yicha.",
+          "stats": {
+            "questions": "Savollar",
+            "answered": "Javob berilgan",
+            "noHits": "Javob topilmagan",
+            "latency": "Javob vaqti (mediana)"
+          },
+          "footnote": "Xatolar: {errors} · Sekin javoblar (p95): {p95} · Limitga tushgan so'rovlar: {limited}",
+          "empty": {
+            "title": "Copilot'ga savol berilmagan",
+            "reason": "Tanlangan davrda hech kim Copilot'dan foydalanmagan."
+          }
+        }
+      },
+      "system": {
+        "title": "Texnik holat",
+        "description": "Ilova operatorlar uchun qanchalik tez ishlayapti — Web Vitals ko'rsatkichlari.",
+        "webVitals": {
+          "title": "Web Vitals",
+          "description": "Har bir ko'rsatkichning p50 va p75 qiymati (millisekund; CLS birliksiz).",
+          "columns": {
+            "metric": "Ko'rsatkich",
+            "p50": "p50",
+            "p75": "p75",
+            "samples": "Namunalar"
           }
         }
       },
@@ -2245,12 +2285,10 @@
         "system": "Tizim"
       },
       "items": {
-        "overview": "Umumiy ko'rinish",
+        "overview": "Bosh panel",
         "people": "Xodimlar",
-        "activityDetails": "Faollik tafsilotlari",
-        "contentHealth": "Kontent sog'ligi",
-        "quality": "Sifat",
-        "copilot": "Copilot",
+        "assessments": "Attestatsiya",
+        "knowledge": "Bilim sifati",
         "scripts": "Skriptlar",
         "objections": "E'tirozlar",
         "faq": "FAQ",
@@ -2263,7 +2301,7 @@
         "history": "O'zgarishlar tarixi",
         "notifications": "Bildirishnomalar",
         "trash": "Savat",
-        "assessments": "Attestatsiya"
+        "system": "Texnik holat"
       }
     },
     "charts": {

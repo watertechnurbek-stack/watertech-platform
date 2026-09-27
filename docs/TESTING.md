@@ -44,8 +44,9 @@ npm run typecheck && npm run lint && npm test && npm run build && npm run e2e
   for its page-mode block, which failed under CI's env until the R3 release audit.
 - Structural guards (they read source files, since vitest runs in `node` with no DOM): `admin/nav.test.ts`
   (the nav against the pages on disk), `auth/admin-gates.test.ts` (`requireAdminPage` in both admin layouts,
-  every `/dashboard` page, the people pages and every attestation page), `attestation/confidentiality.test.ts`
-  (the attestation's `server-only` modules reachable from no client module; no attestation copy in the operator's
+  every monitoring page — `/admin`, `/admin/knowledge`, `/admin/system` — before its reads, the people pages and
+  every attestation page; the `/dashboard` route tree stays gone), `attestation/confidentiality.test.ts` (the
+  attestation's `server-only` modules reachable from no client module; no attestation copy in the operator's
   message payload; the tables outside the CMS registry, queried only by their own modules),
   `admin/confirm-dialog.test.ts` (the confirm dialog's focus
   trap and Escape), `ui/design-tokens.test.ts` (chart tokens ≥ 3:1 on `surface`/`surface-alt` in both
@@ -59,7 +60,7 @@ Playwright starts `npm run start`, so **build first**. It reuses a server alread
 CI has no Google sign-in, so what runs there is what an anonymous visitor can reach:
 
 - `smoke.spec.ts`: `/` gate, the sign-in button in both locales, `/api/events` 401.
-- `auth-gate.spec.ts`: `/`, `/admin`, `/admin/users/<email>`, `/dashboard/content`, `/ru/` redirect to the matching login page, and
+- `auth-gate.spec.ts`: `/`, `/admin`, `/admin/users/<email>`, `/admin/knowledge`, `/ru/admin/system`, `/ru/` redirect to the matching login page, and
   so do URLs that merely end in a file extension (`/sales-process/scripts/<slug>.json`, `/x.json` — the
   matcher hole Audit-2 F1 closed); `/sw.js`, the manifest and one file from each `public/` folder are
   still served without a session.
@@ -74,14 +75,14 @@ The rest need a session and skip themselves without one.
 ### Optional: signed-in checks (`TEST_OPERATOR_COOKIE`, `TEST_SESSION_COOKIE`, `TEST_MANAGER_COOKIE`)
 
 One cookie per role (role model v2, CLAUDE.md §7). `middleware.ts` keeps operators and sales managers out
-of `/admin` and `/dashboard`. The admin may open the operator routes too, but only as a preview (no
+of `/admin` (`/dashboard` only redirects there — `monitoring-redirects.spec.ts`). The admin may open the operator routes too, but only as a preview (no
 telemetry, admin-only menu items), so the operator specs still run as an operator.
 
 | Variable | Role | Unlocks |
 | --- | --- | --- |
 | `TEST_OPERATOR_COOKIE` | operator | `story.spec.ts`, `pins.spec.ts`, `changelog.spec.ts`, `locale.spec.ts`, and the operator blocks of `a11y.spec.ts` (axe on the operator routes and all three `/company/*` scenes, the keyboard walk, the onboarding day header's focus) and `mobile.spec.ts`, and the operator block of `people.spec.ts` (kept out of the people pages) |
-| `TEST_SESSION_COOKIE` | admin (the variable's name predates the role) | the `admin session` block of `auth-gate.spec.ts` (`/dashboard`, `/admin`, `/admin/users?view=table`, the operator-app preview and the avatar menu's way back to `/admin`), `people.spec.ts` (the people directory and a person page; needs migration 0021 applied to that project), `admin-bulk-reorder.spec.ts`, and the admin blocks of `a11y.spec.ts` (axe on `/admin`, `/admin/users`, the table view, a person page, `/dashboard`, `/dashboard/quality` in both themes; the admin keyboard walk) |
-| `TEST_MANAGER_COOKIE` | manager (a sales manager) | the `sales manager session` block of `auth-gate.spec.ts`: `/` renders, and `/admin/**` and `/dashboard/**` send them home; `people.spec.ts`: so do the people pages |
+| `TEST_SESSION_COOKIE` | admin (the variable's name predates the role) | the `admin session` block of `auth-gate.spec.ts` (`/admin`, `/admin/knowledge`, `/admin/system`, `/admin/users?view=table`, the operator-app preview and the avatar menu's way back to `/admin`), the signed-in half of `monitoring-redirects.spec.ts` (each retired `/dashboard` URL lands on its new page), `people.spec.ts` (the people directory and a person page; needs migration 0021 applied to that project), `admin-bulk-reorder.spec.ts`, and the admin blocks of `a11y.spec.ts` (axe on `/admin`, `/admin/users`, the table view, a person page, `/admin/knowledge` (and its stale list), `/admin/system` in both themes; the admin keyboard walk, incl. the content-health tabs) |
+| `TEST_MANAGER_COOKIE` | manager (a sales manager) | the `sales manager session` block of `auth-gate.spec.ts`: `/` renders, and `/admin/**` — and the retired `/dashboard` URLs, via their redirect — send them home; `people.spec.ts`: so do the people pages |
 
 1. `npm run build && npm run start`, open `http://localhost:3000`, sign in with an account of that role.
 2. DevTools → Application → Cookies → `http://localhost:3000`. Copy every `sb-<project-ref>-auth-token`

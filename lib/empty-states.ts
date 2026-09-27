@@ -67,6 +67,8 @@ export const EMPTY_STATES = {
   versionsNone: { key: "versionsNone", icon: History, ctaKind: "retry" },
   trashNone: { key: "trashNone", icon: Trash2, ctaKind: "retry" },
   copilotNoUnanswered: { key: "copilotNoUnanswered", icon: Bot, ctaKind: "link" },
+  attentionClear: { key: "attentionClear", icon: CheckCircle2, ctaKind: "link" },
+  knowledgeNoGaps: { key: "knowledgeNoGaps", icon: CheckCircle2, ctaKind: "link" },
   activityNone: { key: "activityNone", icon: Activity, ctaKind: "clear-filters" },
   offline: { key: "offline", icon: WifiOff, ctaKind: "retry" },
   notFound: { key: "notFound", icon: FileQuestion, ctaKind: "home" },

@@ -31,9 +31,17 @@ const OPERATOR_ROUTES = [
   "/company/mission-values",
   "/company/onboarding",
 ];
-/** The admin panel pages R3 added or rebuilt (S03–S04). The person page is
+/** The admin panel pages R3 added or rebuilt (S03–S04, and the S03 monitoring
+ * IA: the overview, knowledge quality, the technical page). The person page is
  * reached through the directory, since its path depends on the allow-list. */
-const ADMIN_ROUTES = ["/admin", "/admin/users", "/admin/users?view=table", "/dashboard", "/dashboard/quality"];
+const ADMIN_ROUTES = [
+  "/admin",
+  "/admin/users",
+  "/admin/users?view=table",
+  "/admin/knowledge",
+  "/admin/knowledge?health=stale",
+  "/admin/system",
+];
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -201,6 +209,27 @@ test.describe("admin keyboard walk", () => {
     const href = (await rowLink.getAttribute("href")) ?? "";
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(new RegExp(`${escapeRegExp(href)}$`));
+  });
+
+  test("the content-health tabs move with the arrow keys and remember the list in the URL", async ({ page }) => {
+    await page.goto("/admin/knowledge");
+    await expectSignedInAt(page, /\/admin\/knowledge$/);
+    const tablist = page.getByRole("tablist");
+    test.skip((await tablist.count()) === 0, "content health could not be read");
+
+    const tabs = tablist.getByRole("tab");
+    await expect(tabs).toHaveCount(3);
+    await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
+    await tabs.nth(0).focus();
+    await expectVisibleFocus(page);
+    await page.keyboard.press("ArrowRight");
+    await expect(tabs.nth(1)).toBeFocused();
+    await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/[?&]health=stale/);
+    await page.keyboard.press("End");
+    await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("Home");
+    await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
   });
 
   test("a directory card and the person-page access panel are keyboard operable", async ({ page }) => {

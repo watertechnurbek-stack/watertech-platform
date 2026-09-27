@@ -1,7 +1,12 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { narrowColumn } from "@/lib/content/db";
-import { notificationKindSchema, notificationSeveritySchema, type NotificationRow } from "@/lib/notifications/types";
+import {
+  notificationKindSchema,
+  notificationSeveritySchema,
+  type NotificationKind,
+  type NotificationRow,
+} from "@/lib/notifications/types";
 import type { Tables } from "@/lib/supabase/typed";
 
 // Session client, never the admin client: RLS (0007_notifications_and_gate.sql)
@@ -55,6 +60,19 @@ export async function countUnread(): Promise<number> {
     .from("admin_notifications")
     .select("id", { count: "exact", head: true })
     .is("read_at", null);
+  if (error) throw new NotificationsQueryError(error.message);
+  return count ?? 0;
+}
+
+/** Unread notifications of one kind — e.g. "gate_blocked", a publish the gate
+ * refused that nobody has looked at yet (the overview's attention list). Also
+ * a `head: true` count. */
+export async function countUnreadOfKind(kind: NotificationKind): Promise<number> {
+  const { count, error } = await createClient()
+    .from("admin_notifications")
+    .select("id", { count: "exact", head: true })
+    .is("read_at", null)
+    .eq("kind", kind);
   if (error) throw new NotificationsQueryError(error.message);
   return count ?? 0;
 }

@@ -29,9 +29,10 @@ export async function getServerSession(): Promise<ServerSession | null> {
   return { email, role };
 }
 
-/** The page-level gate of the admin panel: the admin layout and every page
- * under app/[locale]/dashboard call it first. Middleware already keeps a
- * non-admin out of /admin and /dashboard; this refuses them again on its own
+/** The page-level gate of the admin panel: the admin layout calls it first, and
+ * so do the monitoring pages and the people pages themselves
+ * (tests/unit/auth/admin-gates.test.ts). Middleware already keeps a non-admin
+ * out of /admin and /dashboard; this refuses them again on its own
  * (CLAUDE.md §7, "each refusing on its own"), sending an operator or a sales
  * manager to their home and a missing session to /login. Returns only for the
  * admin. */

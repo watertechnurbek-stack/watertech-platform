@@ -186,7 +186,7 @@ export async function runContentScan(): Promise<ContentScanResult> {
       `Tekshirilgan nashr etilgan yozuvlar: ${targets.length}. ` +
       `Eskirgan (${STALE_DAYS}+ kun): ${staleFound}. Ruscha tarjimasi to'liq emas: ${missingRuFound}. ` +
       `O'qilmagan eslatma allaqachon bor, qayta yuborilmadi: ${skipped}.`,
-    href: "/dashboard/content",
+    href: "/admin/knowledge#health",
     actor: SCAN_ACTOR,
   };
   const { error: summaryError } = await admin.from("admin_notifications").insert(summary);
