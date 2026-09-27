@@ -130,7 +130,8 @@ lib/
   types.ts                         cross-cutting UI types (NavNode, PageMeta)
   idle.ts                          scheduleIdle (requestIdleCallback wrapper) — §4 "lazy by default"
   empty-states.ts                  EmptyState registry (icons + message keys)
-  content-type-icon.tsx            content type → lucide icon
+  nav-icons.ts                     NAV_ICONS — every siteTree page's own lucide icon (sidebar, section landing
+                                   cards; one per page, tests/unit/nav-icons.test.ts) — and LockIcon
 i18n/
   routing.ts                       next-intl locales, default locale, Link/redirect/usePathname/useRouter — see §13
   request.ts                       next-intl request config (messages loading)
@@ -480,7 +481,9 @@ found, fixed and left open in [docs/AUDIT.md](docs/AUDIT.md).
 
 ## 10. How to add a page (checklist)
 
-1. Add the node to `lib/site-config.ts` `siteTree` (title, path, contentType, description).
+1. Add the node to `lib/site-config.ts` `siteTree` (title, path, contentType, icon, description). `icon` is a key of
+   `NAV_ICONS` (`lib/nav-icons.ts`): add the page's own lucide icon there — one no other page uses
+   (`tests/unit/nav-icons.test.ts`).
 2. Create `app/[locale]/(app)/<path>/page.tsx` as a **Server Component** using `DocPageTemplate` / `PageHeader`.
 3. Data via `lib/content/loader.ts` getter. Interactive bits → small client island in `components/<domain>/`.
 4. Add `export const metadata` and page copy strings via next-intl (both `messages/uz.json` and

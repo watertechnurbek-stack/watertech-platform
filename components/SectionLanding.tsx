@@ -4,7 +4,7 @@ import { Link } from "@/i18n/routing";
 import { Stagger } from "@/components/motion/Stagger";
 import { StaggerItem } from "@/components/motion/StaggerItem";
 import { Breadcrumbs } from "./Breadcrumbs";
-import { contentTypeIcons, LockIcon } from "@/lib/content-type-icon";
+import { NAV_ICONS, LockIcon } from "@/lib/nav-icons";
 import type { NavNode } from "@/lib/types";
 
 export async function SectionLanding({ node }: { node: NavNode }) {
@@ -20,7 +20,7 @@ export async function SectionLanding({ node }: { node: NavNode }) {
 
       <Stagger className="grid gap-3 sm:grid-cols-2">
         {node.children?.map((child) => {
-          const Icon = contentTypeIcons[child.contentType];
+          const Icon = NAV_ICONS[child.icon];
           return (
             <StaggerItem key={child.path}>
               <Link
