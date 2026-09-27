@@ -13,8 +13,8 @@ import {
   Package,
   Phone,
   ScrollText,
+  Swords,
   Trash2,
-  Users,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -73,7 +73,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/scripts", label: "scripts", icon: MessagesSquare },
       { href: "/admin/objections", label: "objections", icon: AlertCircle },
       { href: "/admin/faq", label: "faq", icon: HelpCircle },
-      { href: "/admin/competitors", label: "competitors", icon: Users },
+      { href: "/admin/competitors", label: "competitors", icon: Swords },
       { href: "/admin/packages", label: "packages", icon: Package },
       { href: "/admin/products", label: "products", icon: Boxes },
       { href: "/admin/changelog", label: "changelog", icon: Newspaper },
