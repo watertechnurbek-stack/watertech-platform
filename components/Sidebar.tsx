@@ -266,13 +266,14 @@ function CollapsedNavItem({
                     />
                     <Link
                       href={child.path}
-                      className={`flex items-center gap-2 rounded-xl py-2 pl-6 pr-2.5 text-[13px] ${
+                      className={`flex items-start gap-2 rounded-xl py-2 pl-6 pr-2.5 text-[13px] ${
                         childActive
                           ? "bg-primary/10 font-semibold text-primary-dark"
                           : "text-text-secondary hover:bg-primary/5 hover:text-primary-dark"
                       }`}
                     >
-                      <ChildIcon size={14} className="shrink-0" aria-hidden="true" />
+                      {/* On the first line, beside the guide's branch, when a long (Russian) title wraps. */}
+                      <ChildIcon size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
                       <span className="min-w-0">{t(child.title)}</span>
                     </Link>
                   </div>
